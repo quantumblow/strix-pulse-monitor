@@ -9,6 +9,8 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-blue.svg)](#installation)
 [![Security](https://img.shields.io/badge/security-hardened-success.svg)](SECURITY.md)
 
+![Strix Pulse Monitor - screenshot](docs/screenshot.png)
+
 Part of the open-source **[Strix Advanced Tools](https://github.com/strix-tool)** suite.
 
 ## Features
