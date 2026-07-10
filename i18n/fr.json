@@ -1,0 +1,14 @@
+{
+  "system monitor": "moniteur système",
+  "Hide to tray": "Réduire dans la barre d'état système",
+  "Language": "Langue",
+  "Show / Hide": "Afficher / Masquer",
+  "Toggle Pin": "Basculer l'épinglage",
+  "Start with Windows": "Démarrer avec Windows",
+  "Exit": "Quitter",
+  "{app} is already running.\nCheck your system tray.": "{app} est déjà en cours d'exécution.\nVérifiez votre barre d'état système.",
+  "Unpin — allow dragging": "Désépingler — autoriser le déplacement",
+  "Pin — lock position": "Épingler — verrouiller la position",
+  "Unpin": "Désépingler",
+  "Pin": "Épingler"
+}

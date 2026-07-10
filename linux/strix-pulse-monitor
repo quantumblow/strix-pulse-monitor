@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Strix Pulse Monitor — Linux launcher. Finds the app and runs it with python3,
+# checking the PySide6 + psutil runtime dependencies with helpful hints.
+set -euo pipefail
+
+find_app_dir() {
+    if [ -n "${STRIX_PULSE_HOME:-}" ] && [ -f "${STRIX_PULSE_HOME}/pulse_monitor.py" ]; then
+        printf '%s\n' "${STRIX_PULSE_HOME}"; return 0
+    fi
+    local self here d
+    self="$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")"
+    here="$(dirname "$self")"
+    for d in "$here" "$here/.." "$here/../.."; do
+        if [ -f "$d/pulse_monitor.py" ]; then (cd "$d" && pwd); return 0; fi
+    done
+    for d in /opt/strix-pulse-monitor "$HOME/.local/share/strix-pulse-monitor" /usr/local/share/strix-pulse-monitor; do
+        if [ -f "$d/pulse_monitor.py" ]; then printf '%s\n' "$d"; return 0; fi
+    done
+    return 1
+}
+
+PY="$(command -v python3 || true)"
+[ -z "$PY" ] && { echo "strix-pulse-monitor: python3 not found (sudo apt install python3)" >&2; exit 1; }
+
+if ! "$PY" -c 'import PySide6' >/dev/null 2>&1; then
+    echo "strix-pulse-monitor: PySide6 missing." >&2
+    echo "  Install: sudo apt install python3-pyside6.qtwidgets  (or: pip install PySide6)" >&2
+    exit 1
+fi
+if ! "$PY" -c 'import psutil' >/dev/null 2>&1; then
+    echo "strix-pulse-monitor: psutil missing. Install: sudo apt install python3-psutil" >&2
+    exit 1
+fi
+
+APPDIR="$(find_app_dir)" || { echo "strix-pulse-monitor: pulse_monitor.py not found. Set STRIX_PULSE_HOME." >&2; exit 1; }
+exec "$PY" "$APPDIR/pulse_monitor.py" "$@"

@@ -1,0 +1,14 @@
+{
+  "system monitor": "monitor del sistema",
+  "Hide to tray": "Minimizar a la bandeja",
+  "Language": "Idioma",
+  "Show / Hide": "Mostrar / Ocultar",
+  "Toggle Pin": "Alternar fijado",
+  "Start with Windows": "Iniciar con Windows",
+  "Exit": "Salir",
+  "{app} is already running.\nCheck your system tray.": "{app} ya se está ejecutando.\nRevise la bandeja del sistema.",
+  "Unpin — allow dragging": "Desanclar — permitir arrastrar",
+  "Pin — lock position": "Anclar — bloquear posición",
+  "Unpin": "Desanclar",
+  "Pin": "Anclar"
+}

@@ -1,0 +1,14 @@
+{
+  "system monitor": "システムモニター",
+  "Hide to tray": "トレイに最小化",
+  "Language": "言語",
+  "Show / Hide": "表示 / 非表示",
+  "Toggle Pin": "固定の切り替え",
+  "Start with Windows": "Windows 起動時に実行",
+  "Exit": "終了",
+  "{app} is already running.\nCheck your system tray.": "{app} は既に実行中です。\nシステムトレイを確認してください。",
+  "Unpin — allow dragging": "固定を解除 — ドラッグを許可",
+  "Pin — lock position": "固定 — 位置をロック",
+  "Unpin": "固定を解除",
+  "Pin": "固定"
+}

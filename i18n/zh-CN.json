@@ -1,0 +1,14 @@
+{
+  "system monitor": "系统监视器",
+  "Hide to tray": "隐藏到托盘",
+  "Language": "语言",
+  "Show / Hide": "显示 / 隐藏",
+  "Toggle Pin": "切换固定",
+  "Start with Windows": "开机时随 Windows 启动",
+  "Exit": "退出",
+  "{app} is already running.\nCheck your system tray.": "{app} 已在运行。\n请检查系统托盘。",
+  "Unpin — allow dragging": "取消固定 — 允许拖动",
+  "Pin — lock position": "固定 — 锁定位置",
+  "Unpin": "取消固定",
+  "Pin": "固定"
+}

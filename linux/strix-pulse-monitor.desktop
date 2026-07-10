@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Strix Pulse Monitor
+GenericName=System Monitor Widget
+Comment=Always-on-top desktop widget for CPU/GPU/RAM/disk and live network traffic
+Exec=strix-pulse-monitor
+Icon=strix-pulse-monitor
+Terminal=false
+Categories=Utility;System;Monitor;
+Keywords=cpu;gpu;ram;network;monitor;widget;system;
+StartupNotify=false

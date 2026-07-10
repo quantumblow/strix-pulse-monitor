@@ -1,0 +1,14 @@
+{
+  "system monitor": "системный монитор",
+  "Hide to tray": "Свернуть в трей",
+  "Language": "Язык",
+  "Show / Hide": "Показать / Скрыть",
+  "Toggle Pin": "Закрепить / Открепить",
+  "Start with Windows": "Запускать вместе с Windows",
+  "Exit": "Выход",
+  "{app} is already running.\nCheck your system tray.": "{app} уже запущено.\nПроверьте системный трей.",
+  "Unpin — allow dragging": "Открепить — разрешить перемещение",
+  "Pin — lock position": "Закрепить — зафиксировать положение",
+  "Unpin": "Открепить",
+  "Pin": "Закрепить"
+}

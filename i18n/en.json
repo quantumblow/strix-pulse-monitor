@@ -1,0 +1,14 @@
+{
+  "system monitor": "system monitor",
+  "Hide to tray": "Hide to tray",
+  "Language": "Language",
+  "Show / Hide": "Show / Hide",
+  "Toggle Pin": "Toggle Pin",
+  "Start with Windows": "Start with Windows",
+  "Exit": "Exit",
+  "{app} is already running.\nCheck your system tray.": "{app} is already running.\nCheck your system tray.",
+  "Unpin — allow dragging": "Unpin — allow dragging",
+  "Pin — lock position": "Pin — lock position",
+  "Unpin": "Unpin",
+  "Pin": "Pin"
+}

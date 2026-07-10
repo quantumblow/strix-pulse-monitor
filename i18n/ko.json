@@ -1,0 +1,14 @@
+{
+  "system monitor": "시스템 모니터",
+  "Hide to tray": "트레이로 숨기기",
+  "Language": "언어",
+  "Show / Hide": "표시 / 숨기기",
+  "Toggle Pin": "고정 전환",
+  "Start with Windows": "Windows 시작 시 실행",
+  "Exit": "종료",
+  "{app} is already running.\nCheck your system tray.": "{app} 이(가) 이미 실행 중입니다.\n시스템 트레이를 확인하세요.",
+  "Unpin — allow dragging": "고정 해제 — 끌기 허용",
+  "Pin — lock position": "고정 — 위치 잠금",
+  "Unpin": "고정 해제",
+  "Pin": "고정"
+}

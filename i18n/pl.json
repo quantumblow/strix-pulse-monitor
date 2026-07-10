@@ -1,0 +1,14 @@
+{
+  "system monitor": "monitor systemu",
+  "Hide to tray": "Ukryj w zasobniku",
+  "Language": "Język",
+  "Show / Hide": "Pokaż / Ukryj",
+  "Toggle Pin": "Przełącz przypięcie",
+  "Start with Windows": "Uruchamiaj z systemem Windows",
+  "Exit": "Zakończ",
+  "{app} is already running.\nCheck your system tray.": "{app} jest już uruchomiony.\nSprawdź zasobnik systemowy.",
+  "Unpin — allow dragging": "Odepnij — zezwól na przeciąganie",
+  "Pin — lock position": "Przypnij — zablokuj pozycję",
+  "Unpin": "Odepnij",
+  "Pin": "Przypnij"
+}

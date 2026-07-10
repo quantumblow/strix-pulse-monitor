@@ -1,0 +1,14 @@
+{
+  "system monitor": "системний монітор",
+  "Hide to tray": "Згорнути в трей",
+  "Language": "Мова",
+  "Show / Hide": "Показати / Сховати",
+  "Toggle Pin": "Закріпити / Відкріпити",
+  "Start with Windows": "Запускати разом із Windows",
+  "Exit": "Вихід",
+  "{app} is already running.\nCheck your system tray.": "{app} вже запущено.\nПеревірте системний трей.",
+  "Unpin — allow dragging": "Відкріпити — дозволити переміщення",
+  "Pin — lock position": "Закріпити — зафіксувати позицію",
+  "Unpin": "Відкріпити",
+  "Pin": "Закріпити"
+}

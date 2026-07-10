@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Compile, scan & build .deb (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Syntax check
+        run: python -m py_compile pulse_monitor.py
+
+      - name: Static security scan (bandit)
+        run: |
+          pip install bandit
+          bandit -q -r pulse_monitor.py || true
+
+      - name: Build .deb
+        run: bash linux/build-deb.sh 0.0.0-ci
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: strix-pulse-monitor-deb
+          path: dist/*.deb

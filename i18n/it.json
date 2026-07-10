@@ -1,0 +1,14 @@
+{
+  "system monitor": "monitor di sistema",
+  "Hide to tray": "Riduci nell'area di notifica",
+  "Language": "Lingua",
+  "Show / Hide": "Mostra / Nascondi",
+  "Toggle Pin": "Attiva/disattiva fissaggio",
+  "Start with Windows": "Avvia con Windows",
+  "Exit": "Esci",
+  "{app} is already running.\nCheck your system tray.": "{app} è già in esecuzione.\nControlla l'area di notifica.",
+  "Unpin — allow dragging": "Sblocca — consenti il trascinamento",
+  "Pin — lock position": "Fissa — blocca posizione",
+  "Unpin": "Sblocca",
+  "Pin": "Fissa"
+}
