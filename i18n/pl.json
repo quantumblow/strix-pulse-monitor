@@ -4,7 +4,7 @@
   "Language": "Język",
   "Show / Hide": "Pokaż / Ukryj",
   "Toggle Pin": "Przełącz przypięcie",
-  "Start with Windows": "Uruchamiaj z systemem Windows",
+  "Start on login": "Uruchamiaj przy logowaniu",
   "Exit": "Zakończ",
   "{app} is already running.\nCheck your system tray.": "{app} jest już uruchomiony.\nSprawdź zasobnik systemowy.",
   "Unpin — allow dragging": "Odepnij — zezwól na przeciąganie",

@@ -4,7 +4,7 @@
   "Language": "Sprache",
   "Show / Hide": "Anzeigen / Ausblenden",
   "Toggle Pin": "Anheften umschalten",
-  "Start with Windows": "Mit Windows starten",
+  "Start on login": "Bei der Anmeldung starten",
   "Exit": "Beenden",
   "{app} is already running.\nCheck your system tray.": "{app} wird bereits ausgeführt.\nÜberprüfen Sie Ihren Infobereich.",
   "Unpin — allow dragging": "Lösen — Verschieben erlauben",

@@ -4,7 +4,7 @@
   "Language": "Мова",
   "Show / Hide": "Показати / Сховати",
   "Toggle Pin": "Закріпити / Відкріпити",
-  "Start with Windows": "Запускати разом із Windows",
+  "Start on login": "Запускати під час входу",
   "Exit": "Вихід",
   "{app} is already running.\nCheck your system tray.": "{app} вже запущено.\nПеревірте системний трей.",
   "Unpin — allow dragging": "Відкріпити — дозволити переміщення",
