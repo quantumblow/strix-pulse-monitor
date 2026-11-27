@@ -4,7 +4,7 @@
   "Language": "Idioma",
   "Show / Hide": "Mostrar / Ocultar",
   "Toggle Pin": "Alternar fijado",
-  "Start with Windows": "Iniciar con Windows",
+  "Start on login": "Iniciar al iniciar sesión",
   "Exit": "Salir",
   "{app} is already running.\nCheck your system tray.": "{app} ya se está ejecutando.\nRevise la bandeja del sistema.",
   "Unpin — allow dragging": "Desanclar — permitir arrastrar",

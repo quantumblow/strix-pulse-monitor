@@ -272,26 +272,86 @@ def save_settings(data: dict):
         pass
 
 
-def ensure_autostart(enable: bool):
-    """Add or remove a per-user 'start with Windows' entry (HKCU ...\\Run).
-    Only manages the installed/frozen .exe; a no-op when run from source or
-    off Windows. Wrapped so it can never break startup."""
-    if os.name != "nt":
+def _linux_autostart_path() -> str:
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    return os.path.join(base, "autostart", "strix-pulse-monitor.desktop")
+
+
+def _linux_autostart_exec() -> list[str]:
+    """Absolute command that starts the widget — never resolved via $PATH."""
+    if getattr(sys, "frozen", False):
+        return [sys.executable]
+    for p in ("/usr/bin/strix-pulse-monitor",
+              "/usr/local/bin/strix-pulse-monitor",
+              os.path.expanduser("~/.local/bin/strix-pulse-monitor")):
+        if os.access(p, os.X_OK):
+            return [p]
+    script = os.path.abspath(__file__)
+    return [sys.executable, script] if os.path.isfile(script) else []
+
+
+def _desktop_quote(arg: str) -> str:
+    # .desktop Exec quoting: escape backslashes first, then double quotes.
+    return '"' + arg.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _write_linux_autostart(path: str) -> None:
+    argv = _linux_autostart_exec()
+    if not argv:
         return
-    exe = sys.executable if getattr(sys, "frozen", False) else None
+    entry = (
+        "[Desktop Entry]\n"
+        "Type=Application\n"
+        "Name=Strix Pulse Monitor\n"
+        "Comment=Always-on-top system monitor widget\n"
+        f"Exec={' '.join(_desktop_quote(a) for a in argv)}\n"
+        "Icon=strix-pulse-monitor\n"
+        "Terminal=false\n"
+        "Categories=Utility;System;Monitor;\n"
+        "X-GNOME-Autostart-enabled=true\n"
+    )
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(entry)
+    os.replace(tmp, path)
+
+
+def ensure_autostart(enable: bool):
+    """Enable/disable starting the widget at login.
+
+    Windows manages a per-user HKCU ...\\Run value (installed exe only); Linux
+    manages an XDG autostart drop-in. When enabling, an existing drop-in is
+    left untouched, so entries created by install.sh --autostart (or edited by
+    hand) keep their settings. Wrapped so it can never break startup."""
+    if os.name == "nt":
+        exe = sys.executable if getattr(sys, "frozen", False) else None
+        try:
+            import winreg
+            run_key = r"Software\Microsoft\Windows\CurrentVersion\Run"
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, run_key, 0,
+                                winreg.KEY_SET_VALUE) as key:
+                if enable and exe:
+                    winreg.SetValueEx(key, "Strix Pulse Monitor", 0,
+                                      winreg.REG_SZ, f'"{exe}"')
+                else:
+                    try:
+                        winreg.DeleteValue(key, "Strix Pulse Monitor")
+                    except FileNotFoundError:
+                        pass
+        except Exception:
+            pass
+        return
+
     try:
-        import winreg
-        run_key = r"Software\Microsoft\Windows\CurrentVersion\Run"
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, run_key, 0,
-                            winreg.KEY_SET_VALUE) as key:
-            if enable and exe:
-                winreg.SetValueEx(key, "Strix Pulse Monitor", 0,
-                                  winreg.REG_SZ, f'"{exe}"')
-            else:
-                try:
-                    winreg.DeleteValue(key, "Strix Pulse Monitor")
-                except FileNotFoundError:
-                    pass
+        path = _linux_autostart_path()
+        if enable:
+            if not os.path.exists(path):
+                _write_linux_autostart(path)
+        else:
+            os.unlink(path)
+    except FileNotFoundError:
+        pass
     except Exception:
         pass
 
@@ -384,8 +444,13 @@ class PulseWidget(QWidget):
         saved_lang = self.settings.get("lang")
         _TR.set(saved_lang if saved_lang in LANG_CODES else detect_os_lang())
         self.pinned = self.settings.get("pinned", False)
-        self.autostart = self.settings.get("autostart", True)
-        ensure_autostart(self.autostart)   # keep the Run entry in sync on launch
+        if os.name == "nt":
+            self.autostart = self.settings.get("autostart", True)
+        else:
+            # The XDG drop-in is the source of truth: it may pre-date the app
+            # (install.sh --autostart) or have been edited by hand.
+            self.autostart = os.path.exists(_linux_autostart_path())
+        ensure_autostart(self.autostart)   # keep the login entry in sync
         self._drag_offset: QPoint | None = None
         self._quitting = False
 
@@ -567,6 +632,7 @@ class PulseWidget(QWidget):
     def toggle_autostart(self):
         self.autostart = not self.autostart
         ensure_autostart(self.autostart)
+        self.act_auto.setChecked(self.autostart)   # keep tray menu in sync
         self._persist()
 
     def _apply_cursor(self):
@@ -632,7 +698,7 @@ class PulseWidget(QWidget):
         self._update_pin_icon()
         self.act_show.setText(_("Show / Hide"))
         self.act_pin.setText(_("Toggle Pin"))
-        self.act_auto.setText(_("Start with Windows"))
+        self.act_auto.setText(_("Start on login"))
         self.act_quit.setText(_("Exit"))
         self.tray_lang_menu.setTitle(_("Language"))
         for act, code in zip(self.tray_lang_menu.actions(), LANG_CODES):
@@ -643,7 +709,7 @@ class PulseWidget(QWidget):
         menu = QMenu(self)
         act_pin = menu.addAction(_("Unpin") if self.pinned else _("Pin"))
         act_hide = menu.addAction(_("Hide to tray"))
-        act_auto = menu.addAction(_("Start with Windows"))
+        act_auto = menu.addAction(_("Start on login"))
         act_auto.setCheckable(True)
         act_auto.setChecked(self.autostart)
         menu.addMenu(self._make_language_menu(menu))
@@ -669,7 +735,7 @@ class PulseWidget(QWidget):
         self.act_show.triggered.connect(self._toggle_visible)
         self.act_pin = QAction(_("Toggle Pin"), menu)
         self.act_pin.triggered.connect(self.toggle_pin)
-        self.act_auto = QAction(_("Start with Windows"), menu)
+        self.act_auto = QAction(_("Start on login"), menu)
         self.act_auto.setCheckable(True)
         self.act_auto.setChecked(self.autostart)
         self.act_auto.triggered.connect(self.toggle_autostart)

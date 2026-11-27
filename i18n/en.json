@@ -4,7 +4,7 @@
   "Language": "Language",
   "Show / Hide": "Show / Hide",
   "Toggle Pin": "Toggle Pin",
-  "Start with Windows": "Start with Windows",
+  "Start on login": "Start on login",
   "Exit": "Exit",
   "{app} is already running.\nCheck your system tray.": "{app} is already running.\nCheck your system tray.",
   "Unpin — allow dragging": "Unpin — allow dragging",

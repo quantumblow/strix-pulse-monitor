@@ -4,7 +4,7 @@
   "Language": "言語",
   "Show / Hide": "表示 / 非表示",
   "Toggle Pin": "固定の切り替え",
-  "Start with Windows": "Windows 起動時に実行",
+  "Start on login": "ログイン時に起動",
   "Exit": "終了",
   "{app} is already running.\nCheck your system tray.": "{app} は既に実行中です。\nシステムトレイを確認してください。",
   "Unpin — allow dragging": "固定を解除 — ドラッグを許可",

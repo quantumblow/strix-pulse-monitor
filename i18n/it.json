@@ -4,7 +4,7 @@
   "Language": "Lingua",
   "Show / Hide": "Mostra / Nascondi",
   "Toggle Pin": "Attiva/disattiva fissaggio",
-  "Start with Windows": "Avvia con Windows",
+  "Start on login": "Avvia all'accesso",
   "Exit": "Esci",
   "{app} is already running.\nCheck your system tray.": "{app} è già in esecuzione.\nControlla l'area di notifica.",
   "Unpin — allow dragging": "Sblocca — consenti il trascinamento",

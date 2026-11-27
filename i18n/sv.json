@@ -4,7 +4,7 @@
   "Language": "Språk",
   "Show / Hide": "Visa / Dölj",
   "Toggle Pin": "Växla fäst",
-  "Start with Windows": "Starta med Windows",
+  "Start on login": "Starta vid inloggning",
   "Exit": "Avsluta",
   "{app} is already running.\nCheck your system tray.": "{app} körs redan.\nKontrollera systemfältet.",
   "Unpin — allow dragging": "Lossa — tillåt dragning",

@@ -18,6 +18,13 @@ All notable changes to Strix Pulse Monitor are documented here. Format:
 - Unified on the full PySide6 widget; the old **Pulse Lite** edition is superseded
   (its source was not recoverable and its features are a subset of this app).
 
+### Fixed
+- **Autostart on Linux** — the tray toggle now creates/removes the XDG drop-in
+  (`~/.config/autostart/strix-pulse-monitor.desktop`) instead of silently doing
+  nothing outside Windows, and the menu entry reads **"Start on login"** rather
+  than claiming Windows. A drop-in created by `install.sh --autostart` (or edited
+  by hand) is preserved, and the checkbox reflects what is actually on disk.
+
 ### Security
 - The Windows GPU-counter fallback now invokes **PowerShell by absolute path** instead of
   a bare name (defense-in-depth against `%PATH%` hijacking). See `SECURITY.md`.

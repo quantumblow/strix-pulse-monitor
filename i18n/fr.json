@@ -4,7 +4,7 @@
   "Language": "Langue",
   "Show / Hide": "Afficher / Masquer",
   "Toggle Pin": "Basculer l'épinglage",
-  "Start with Windows": "Démarrer avec Windows",
+  "Start on login": "Démarrer à la connexion",
   "Exit": "Quitter",
   "{app} is already running.\nCheck your system tray.": "{app} est déjà en cours d'exécution.\nVérifiez votre barre d'état système.",
   "Unpin — allow dragging": "Désépingler — autoriser le déplacement",
