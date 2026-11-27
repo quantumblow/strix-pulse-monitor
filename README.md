@@ -17,8 +17,9 @@ Part of the open-source **[Strix Advanced Tools](https://github.com/strix-tool)*
 
 - Live **CPU, GPU, RAM, Storage** usage and **network down/up** traffic, refreshed once a second.
 - **Frameless glass widget** — drag to move, pin to lock, hide to tray.
-- **GPU support:** NVIDIA via `nvidia-smi`; on Windows, Intel/AMD via GPU performance
-  counters; on **Linux, AMD via sysfs** (`gpu_busy_percent`, no root). Falls back to N/A gracefully.
+- **GPU support:** NVIDIA via `nvidia-smi` (utilisation **and VRAM used/total**); on Windows,
+  Intel/AMD via GPU performance counters (utilisation only); on **Linux, AMD via sysfs**
+  (`gpu_busy_percent` + `mem_info_vram_*`, no root). Falls back to N/A gracefully.
 - Position & pin state saved and restored between runs.
 - **Hardened:** no network, no shell strings, no elevation. Settings are validated on load
   and written atomically. See [SECURITY.md](SECURITY.md).

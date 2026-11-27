@@ -6,6 +6,11 @@ All notable changes to Strix Pulse Monitor are documented here. Format:
 ## [Unreleased]
 
 ### Added
+- **GPU VRAM readout** — the GPU row now shows memory used/total next to utilisation
+  (`8% 1.8/16G`), and the tray tooltip lists it too. NVIDIA comes from `nvidia-smi`
+  `memory.used`/`memory.total`; AMD from `mem_info_vram_used`/`mem_info_vram_total` in
+  the same sysfs directory as `gpu_busy_percent`. Windows GPU counters stay
+  utilisation-only, and unsupported backends keep the old percentage-only row.
 - **Native Linux support** — launcher, `.desktop` entry, `install.sh`/`uninstall.sh`
   (with `--autostart`), and a `.deb` builder.
 - **Linux GPU utilisation** via AMD sysfs (`gpu_busy_percent`, no root); NVIDIA continues
