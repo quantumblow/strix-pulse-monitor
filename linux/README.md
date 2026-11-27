@@ -1,8 +1,9 @@
 # Strix Pulse Monitor — Linux packaging
 
 The app (`../pulse_monitor.py`) is cross-platform PySide6 + psutil. On Linux it reads
-GPU utilisation from AMD sysfs (`gpu_busy_percent`) or NVIDIA `nvidia-smi`; other GPUs
-show N/A. Only packaging lives in this folder.
+GPU utilisation (and VRAM, where the driver exposes it) from AMD sysfs
+(`gpu_busy_percent`, `mem_info_vram_*`) or NVIDIA `nvidia-smi`; other GPUs show N/A.
+Only packaging lives in this folder.
 
 ## Files
 

@@ -3,7 +3,7 @@ PULSE — Personal Desktop System Monitor  (v2, security & stability audited)
 A Rainmeter-style, always-on-top, draggable desktop widget for Windows 11.
 
 Features:
-  • Live CPU, GPU, RAM, Storage usage + real-time network down/up traffic
+  • Live CPU, GPU (utilisation + VRAM), RAM, Storage + network down/up traffic
   • Frameless glass design with painted soft shadow (no Qt effect glitches)
   • Drag anywhere to reposition, Pin (📌) to lock in place
   • Right-click context menu on the widget itself
@@ -72,6 +72,7 @@ ACCENTS = {
 WARN_COLOR   = "#FF5252"  # bars turn red at/above this threshold
 WARN_AT      = 90.0
 WIDGET_WIDTH = 300        # card width in px
+METER_TEXT_W = 106        # right-hand value column in the meter rows (px)
 SHADOW_PAD   = 12         # margin reserved around the card for the soft shadow
 CORNER       = 14         # card corner radius
 REFRESH_MS   = 1000       # UI refresh interval
@@ -105,6 +106,10 @@ else:
 class GpuReader:
     def __init__(self):
         self.percent: float | None = None       # None → "N/A"
+        # (used GiB, total GiB) of GPU memory, or None when the backend cannot
+        # report it. Stored as one tuple so the UI never sees a half-updated
+        # pair from two different samples.
+        self.vram: tuple[float, float] | None = None
         self._amd_path = None
         self._nvsmi = None
         self._mode = self._detect()
@@ -166,6 +171,56 @@ class GpuReader:
                 continue          # different drive → not this root
         return False
 
+    # ---- value parsing -----------------------------------------------------
+    @staticmethod
+    def _pct(text: str) -> float | None:
+        try:
+            return max(0.0, min(float(text), 100.0))
+        except (TypeError, ValueError):
+            return None           # "[N/A]", "[Unknown Error]", empty, …
+
+    @staticmethod
+    def _vram(used: str, total: str) -> tuple[float, float] | None:
+        """(used, total) in MiB → (used, total) in GiB, or None if unusable."""
+        try:
+            u, t = float(used), float(total)
+        except (TypeError, ValueError):
+            return None           # "[N/A]" on MIG/older drivers
+        if t <= 0 or u < 0:
+            return None
+        return (u / 1024.0, t / 1024.0)
+
+    @staticmethod
+    def _sysfs_vram(base: str) -> tuple[float, float] | None:
+        # amdgpu exposes VRAM in bytes next to gpu_busy_percent; absent on
+        # older kernels and on non-AMD GPUs, hence the soft failure.
+        try:
+            with open(os.path.join(base, "mem_info_vram_used"), "r") as f:
+                used = int(f.read().strip())
+            with open(os.path.join(base, "mem_info_vram_total"), "r") as f:
+                total = int(f.read().strip())
+        except (OSError, ValueError):
+            return None
+        if total <= 0 or used < 0:
+            return None
+        return (used / 1024 ** 3, total / 1024 ** 3)
+
+    def _nvidia_query(self, fields: str) -> str | None:
+        """First GPU's CSV line for `fields`, or None if the query fails."""
+        try:
+            out = subprocess.run(
+                [self._nvsmi, f"--query-gpu={fields}",
+                 "--format=csv,noheader,nounits"],
+                capture_output=True, text=True, timeout=4,
+                creationflags=_NO_WINDOW,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if out.returncode != 0:
+            return None
+        lines = out.stdout.strip().splitlines()
+        return lines[0].strip() if lines else None
+
     def _detect(self) -> str | None:
         self._nvsmi = self._find_nvidia_smi()
         if self._nvsmi:
@@ -190,21 +245,31 @@ class GpuReader:
                     self._read_windows_counter()
             except Exception:
                 self.percent = None
+                self.vram = None
             time.sleep(self._interval)
 
     def _read_amdgpu(self):
         with open(self._amd_path, "r") as f:
-            self.percent = max(0.0, min(float(f.read().strip()), 100.0))
+            self.percent = self._pct(f.read().strip())
+        # VRAM lives in the same sysfs directory as gpu_busy_percent.
+        self.vram = self._sysfs_vram(os.path.dirname(self._amd_path))
 
     def _read_nvidia(self):
-        out = subprocess.run(
-            [self._nvsmi, "--query-gpu=utilization.gpu",
-             "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=4,
-            creationflags=_NO_WINDOW,
-        )
-        first = out.stdout.strip().splitlines()[0]
-        self.percent = max(0.0, min(float(first), 100.0))
+        # One query for all three fields — nvidia-smi costs ~20 ms, so asking
+        # for memory.used/total adds negligible overhead.
+        line = self._nvidia_query("utilization.gpu,memory.used,memory.total")
+        parts = [p.strip() for p in line.split(",")] if line else []
+        if len(parts) < 3:
+            # Older drivers may not know the memory fields; keep the bar alive
+            # with utilisation only instead of going N/A.
+            line = self._nvidia_query("utilization.gpu")
+            parts = [line] if line else []
+        if not parts:
+            self.percent = None
+            self.vram = None
+            return
+        self.percent = self._pct(parts[0])
+        self.vram = self._vram(parts[1], parts[2]) if len(parts) >= 3 else None
 
     def _read_windows_counter(self):
         # Sum of all 3D-engine utilisation counters (covers Intel/AMD iGPUs).
@@ -233,6 +298,16 @@ def human_speed(bytes_per_sec: float) -> str:
 
 def human_gb(nbytes: float) -> str:
     return f"{nbytes / 1024 ** 3:.1f}"
+
+
+def human_vram(used_gb: float, total_gb: float) -> str:
+    """'1.8/16G' — used in GiB with one decimal; the total is shown whole when
+    the driver's reserved-memory sliver (e.g. 16303 of 16384 MiB) is just
+    rounding noise, and with a decimal for small iGPU carve-outs (0.5G)."""
+    whole = round(total_gb)
+    total = (f"{whole:d}" if abs(total_gb - whole) <= 0.15
+             else f"{total_gb:.1f}")
+    return f"{used_gb:.1f}/{total}G"
 
 
 def load_settings() -> dict:
@@ -324,7 +399,7 @@ class MeterBar(QWidget):
         p.setFont(QFont("Segoe UI", 8, QFont.DemiBold))
         p.drawText(QRectF(0, 0, 52, h), Qt.AlignVCenter | Qt.AlignLeft, self.label)
 
-        bar_x, bar_w, bar_h = 56, w - 56 - 92, 6
+        bar_x, bar_w, bar_h = 56, w - 56 - METER_TEXT_W - 2, 6
         bar_y = (h - bar_h) / 2
         track = QPainterPath()
         track.addRoundedRect(QRectF(bar_x, bar_y, bar_w, bar_h), 3, 3)
@@ -340,8 +415,8 @@ class MeterBar(QWidget):
 
         p.setPen(QColor(TEXT_MAIN))
         p.setFont(QFont("Consolas", 8))
-        p.drawText(QRectF(w - 90, 0, 90, h), Qt.AlignVCenter | Qt.AlignRight,
-                   self.text)
+        p.drawText(QRectF(w - METER_TEXT_W, 0, METER_TEXT_W, h),
+                   Qt.AlignVCenter | Qt.AlignRight, self.text)
         p.end()
 
 
@@ -506,8 +581,14 @@ class PulseWidget(QWidget):
             freq_txt = ""
         self.cpu_bar.set(cpu, f"{cpu:4.0f}%  {freq_txt}")
 
-        g = self.gpu.percent
-        self.gpu_bar.set(g, "  N/A" if g is None else f"{g:4.0f}%")
+        g, vram = self.gpu.percent, self.gpu.vram
+        if g is None:
+            gpu_txt = "  N/A"
+        elif vram:
+            gpu_txt = f"{g:3.0f}% {human_vram(vram[0], vram[1])}"
+        else:
+            gpu_txt = f"{g:4.0f}%"
+        self.gpu_bar.set(g, gpu_txt)
 
         vm = psutil.virtual_memory()
         self.ram_bar.set(vm.percent,
@@ -537,8 +618,15 @@ class PulseWidget(QWidget):
         self._last_net, self._last_t = net, now
         self.net_row.set(down, up)
 
+        if g is None:
+            gpu_tip = "GPU N/A"
+        elif vram:
+            gpu_tip = f"GPU {g:.0f}%   VRAM {human_vram(vram[0], vram[1])}"
+        else:
+            gpu_tip = f"GPU {g:.0f}%"
         self.tray.setToolTip(
             f"{APP_NAME}\nCPU {cpu:.0f}%   RAM {vm.percent:.0f}%\n"
+            f"{gpu_tip}\n"
             f"▼ {human_speed(down).strip()}   ▲ {human_speed(up).strip()}")
 
     # ---------------- drag & pin ----------------

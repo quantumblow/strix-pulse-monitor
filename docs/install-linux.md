@@ -33,8 +33,10 @@ python3 pulse_monitor.py
 
 ## GPU notes
 
-- **NVIDIA:** works via `nvidia-smi` (installed with the driver).
-- **AMD:** read from `/sys/class/drm/card*/device/gpu_busy_percent` — no root, no tools.
+- **NVIDIA:** works via `nvidia-smi` (installed with the driver) — utilisation and VRAM
+  (`memory.used` / `memory.total`).
+- **AMD:** read from `/sys/class/drm/card*/device/` — `gpu_busy_percent` for utilisation and
+  `mem_info_vram_used` / `mem_info_vram_total` for VRAM. No root, no tools.
 - **Intel:** live per-cent needs privileged tooling, so the GPU row shows **N/A** by design
   (the widget never asks for root).
 

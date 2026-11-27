@@ -13,7 +13,8 @@ The widget appears as a small frameless card, always on top.
 ## What the rows mean
 
 - **CPU / RAM / Storage** — percentage in use.
-- **GPU** — utilisation from NVIDIA/AMD (see install docs); **N/A** if no supported source.
+- **GPU** — utilisation (the bar) from NVIDIA/AMD plus VRAM used/total next to it,
+  e.g. `8% 1.8/16G`; **N/A** if no supported source.
 - **NET** — live download / upload throughput.
 
 ## Settings
