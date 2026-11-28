@@ -11,7 +11,7 @@ Requires Python 3.10+, PySide6 and psutil. The widget tests force Qt's
 manager, a tray or the current desktop session; `DISPLAY` is not needed.
 
 - `test_scaling.py` — pure helpers: the 0.5–4.0 clamp, wheel-step math, the 2×
-  font cap, the `clamp(14 × scale, 10, 24)` grip, corner hit-testing, uniform
+  font cap, the `clamp(14 × scale, 10, 24)` grip plus the shadow margin, corner hit-testing, uniform
   drag math, opposite-corner anchoring, layout metrics and settings validation.
 - `test_scaling_ui.py` — a real `PulseWidget` driven through its event
   handlers: Ctrl+wheel (step, in-place resize, clamping), font cap on the actual
@@ -36,7 +36,8 @@ XDG_CONFIG_HOME="$CFG" python3 pulse_monitor.py &
    size with `layout_metrics(scale)`.
 2. **Corners** — grab each corner: the cursor becomes a diagonal resize cursor,
    both dimensions scale together and the opposite corner does not move. The
-   grab zone is 10 px at 0.5×, 14 px at 1× and 24 px from 2× up.
+   zone starts at the window edge and reaches 10/14/24 px past the shadow margin
+   at 0.5×/1×/2×+, so the rounded corner itself works.
 3. **Pin** — with Pin on, dragging the body does not move the card, but dragging
    a corner still resizes it.
 4. **Persistence** — restart the app: `scale`, `x`, `y` and the resulting window

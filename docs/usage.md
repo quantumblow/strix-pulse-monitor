@@ -24,11 +24,13 @@ The card scales proportionally between **0.5× and 4×**, and the chosen size is
 remembered across launches.
 
 - **Ctrl + mouse wheel** changes the scale by **10 % per notch**, eased over
-  about 160 ms. The card's top-left stays fixed, so only its size changes and it
+  about 320 ms. The card's top-left stays fixed, so only its size changes and it
   never moves sideways while zooming.
 - **Drag a corner** to resize: both dimensions scale together, the opposite
-  corner stays fixed, and the grab zone is `clamp(14 × scale, 10, 24)` px.
-  The pin only locks moving, so a pinned widget can still be resized.
+  corner stays fixed. The grab zone reaches from the window edge to
+  `SHADOW_PAD + clamp(14 × scale, 10, 24)` px inward, so the visible rounded
+  corner itself is grabbable. The pin only locks moving, so a pinned widget can
+  still be resized.
 - **Text stops growing at 2×** even when the card is larger; below 1× the text
   shrinks along with the window. Rows and bars always keep the window's scale.
 

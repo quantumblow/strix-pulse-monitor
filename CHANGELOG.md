@@ -10,8 +10,9 @@ All notable changes to Strix Pulse Monitor are documented here. Format:
   and restored on launch. Zoomed windows are nudged back inside the screen so
   the card can never grow out of reach.
 - **Four-corner resizing** — drag any corner for a uniform resize that keeps the
-  opposite corner anchored. The grab zone is `clamp(14 × scale, 10, 24)` px, and
-  Pin only locks *moving*: a pinned widget can still be resized.
+  opposite corner anchored. The grab zone reaches from the window edge to
+  `SHADOW_PAD + clamp(14 × scale, 10, 24)` px inward, so the rounded corner is
+  grabbable, and Pin only locks *moving*: a pinned widget can still be resized.
 - **Font scale cap** — text tracks the window when shrinking below 1× but stops
   growing at **2×**, while the card and its rows keep scaling up to 4×.
 - **Scaling tests** — `tests/` covers scale math, settings validation,
@@ -29,7 +30,7 @@ All notable changes to Strix Pulse Monitor are documented here. Format:
   card's top-left fixed and only changes its size, so no per-frame move can
   make it wobble.
 - **Eased Ctrl+wheel zoom** — a wheel notch still adds exactly 10 %, but the
-  card now eases to the new scale with smoothstep over roughly 160 ms instead
+  card now eases to the new scale with smoothstep over roughly 320 ms instead
   of jumping in one frame. Smoothstep spreads the movement evenly across the
   frames; the previous exponential ease-out front-loaded most of a step into
   the first frame. Rapid notches retarget the same animation, and the final

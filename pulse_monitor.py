@@ -94,15 +94,9 @@ RESIZE_GRIP     = 14      # corner hit zone at 1.0× (px), clamped below
 RESIZE_GRIP_MIN = 10
 RESIZE_GRIP_MAX = 24
 SHADOW_MAX_STEPS = 24     # cap the shadow layers at large scales
-# Wheel zoom easing. This is the full animation duration; smoothstep spreads
-# the step evenly over it instead of front-loading most of the movement into
-# the first frame. PULSE_ZOOM_EASE_MS is a temporary A/B test knob:
-# 0 disables easing; any positive value is a duration in milliseconds (no
-# hard upper bound, so 0–300 is all valid).
-try:
-    ZOOM_EASE_MS = max(0, int(os.environ.get("PULSE_ZOOM_EASE_MS", "160")))
-except ValueError:
-    ZOOM_EASE_MS = 160
+# Ctrl+wheel zoom animation duration (ms). Smoothstep spreads the step evenly
+# over it instead of front-loading most of the movement into the first frame.
+ZOOM_EASE_MS = 320
 BASE_WIDTH      = WIDGET_WIDTH + SHADOW_PAD * 2
 
 # Base layout heights (px at 1.0×). Kept here so the window size, the layout
@@ -423,7 +417,7 @@ def scaled_point_size(base_pt: float, scale) -> float:
 
 
 def resize_grip(scale) -> int:
-    """Corner hit zone in px: proportional, but 10–24 px at the extremes."""
+    """How far the corner hit zone reaches past the shadow margin (10–24 px)."""
     return max(RESIZE_GRIP_MIN,
                min(RESIZE_GRIP_MAX, round(RESIZE_GRIP * clamp_scale(scale))))
 
@@ -437,17 +431,24 @@ CORNER_CURSORS = {
 
 
 def resize_corner(pos: QPoint, width: int, height: int, scale) -> str | None:
-    """Which corner (if any) is under `pos` inside the window rect."""
-    grip = resize_grip(scale)
-    if pos.x() < grip:
+    """Which corner (if any) is under `pos` inside the window rect.
+
+    The window rect includes the shadow margin, so the visible card corner sits
+    `SHADOW_PAD` px in from it. The grab area therefore starts at the window
+    edge (so the shadow margin also works) and extends one grip length past the
+    card corner, which puts the rounded corner itself inside the hit zone.
+    """
+    s = clamp_scale(scale)
+    edge = round(SHADOW_PAD * s) + resize_grip(s)
+    if pos.x() < edge:
         horizontal = "left"
-    elif pos.x() >= width - grip:
+    elif pos.x() >= width - edge:
         horizontal = "right"
     else:
         return None
-    if pos.y() < grip:
+    if pos.y() < edge:
         vertical = "top"
-    elif pos.y() >= height - grip:
+    elif pos.y() >= height - edge:
         vertical = "bottom"
     else:
         return None
@@ -1180,8 +1181,8 @@ class PulseWidget(QWidget):
             self._stop_zoom()
             return
         if ZOOM_EASE_MS <= 0:
-            # A/B test mode: apply the notch immediately (still one geometry
-            # update, so it stays free of the old jitter).
+            # Zero duration (used by tests): apply the notch immediately in a
+            # single geometry update.
             self._zoom_frame(target)
             self._zoom_target = self.scale
             self._persist()

@@ -59,19 +59,33 @@ def test_resize_grip_clamps_to_10_24_px():
 def test_resize_corner_hit_test():
     w, h = 324, 275
     grip = pm.resize_grip(1.0)
-    assert grip == 14
+    pad = pm.SHADOW_PAD
+    edge = pad + grip                       # 26 px at 1x
+    assert (grip, pad, edge) == (14, 12, 26)
+
+    # The shadow margin and the visible rounded corner both trigger.
     assert pm.resize_corner(QPoint(0, 0), w, h, 1.0) == "top-left"
-    assert pm.resize_corner(QPoint(grip - 1, grip - 1), w, h, 1.0) == "top-left"
+    assert pm.resize_corner(QPoint(pad, pad), w, h, 1.0) == "top-left"
+    assert pm.resize_corner(QPoint(pad + 8, pad + 8), w, h, 1.0) == "top-left"
+    assert pm.resize_corner(QPoint(edge - 1, edge - 1), w, h, 1.0) == "top-left"
+    assert pm.resize_corner(QPoint(edge, edge), w, h, 1.0) is None
+
     assert pm.resize_corner(QPoint(w - 1, 0), w, h, 1.0) == "top-right"
+    assert pm.resize_corner(QPoint(w - edge, 0), w, h, 1.0) == "top-right"
+    assert pm.resize_corner(QPoint(w - edge - 1, 0), w, h, 1.0) is None
     assert pm.resize_corner(QPoint(0, h - 1), w, h, 1.0) == "bottom-left"
+    assert pm.resize_corner(QPoint(0, h - edge), w, h, 1.0) == "bottom-left"
     assert pm.resize_corner(QPoint(w - 1, h - 1), w, h, 1.0) == "bottom-right"
+
     # Edges (not corners) and the body are drag/zoom areas.
-    assert pm.resize_corner(QPoint(grip + 1, 0), w, h, 1.0) is None
-    assert pm.resize_corner(QPoint(0, grip + 1), w, h, 1.0) is None
+    assert pm.resize_corner(QPoint(edge, 0), w, h, 1.0) is None
+    assert pm.resize_corner(QPoint(0, edge), w, h, 1.0) is None
     assert pm.resize_corner(QPoint(w // 2, h // 2), w, h, 1.0) is None
-    # The hit zone scales down to 10 px on a 0.5× card.
-    assert pm.resize_corner(QPoint(9, 9), 162, 137, 0.5) == "top-left"
-    assert pm.resize_corner(QPoint(10, 10), 162, 137, 0.5) is None
+
+    # At 0.5x the pad is 6 px and the grip 10 px, so the zone ends at 16 px.
+    assert pm.resize_corner(QPoint(6, 6), 162, 137, 0.5) == "top-left"
+    assert pm.resize_corner(QPoint(15, 15), 162, 137, 0.5) == "top-left"
+    assert pm.resize_corner(QPoint(16, 16), 162, 137, 0.5) is None
 
 
 def test_corner_drag_scale_is_uniform_and_clamped():
