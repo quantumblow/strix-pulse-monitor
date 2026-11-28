@@ -4,7 +4,9 @@
 
 Unicode true
 !define APP    "Strix Pulse Monitor"
+!ifndef VER
 !define VER    "1.0.0"
+!endif
 !define EXE    "Strix Pulse Monitor.exe"
 !define COMPANY "Strix Advanced Tools"
 
