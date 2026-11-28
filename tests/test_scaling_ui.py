@@ -119,6 +119,24 @@ def test_wheel_zoom_clamps_to_limits(widget):
 
 
 # ------------------------------------------------------------------ font cap
+def test_large_scale_jump_applies_exact_size(widget):
+    # A fast 4x -> 0.5x drag used to be clamped by the previous layout minimum
+    # for one frame because setGeometry ran before the layout was re-activated.
+    widget._apply_scale(4.0)
+    assert widget.size() == widget._size_for_scale(4.0)
+    widget._apply_scale(0.5)
+    assert widget.size() == widget._size_for_scale(0.5)
+    widget._apply_scale(4.0)
+    assert widget.size() == widget._size_for_scale(4.0)
+
+
+def test_scaling_in_place_keeps_position(widget):
+    widget.move(120, 140)
+    QApplication.processEvents()
+    widget._apply_scale(2.0)
+    assert widget.pos() == QPoint(120, 140)
+
+
 def test_fonts_stop_at_twice_the_size(widget):
     widget._apply_scale(4.0)
     assert widget.size() == widget._size_for_scale(4.0)

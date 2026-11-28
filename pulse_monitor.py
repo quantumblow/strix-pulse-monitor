@@ -92,6 +92,7 @@ DEFAULT_SCALE   = 1.0
 RESIZE_GRIP     = 14      # corner hit zone at 1.0× (px), clamped below
 RESIZE_GRIP_MIN = 10
 RESIZE_GRIP_MAX = 24
+SHADOW_MAX_STEPS = 24     # cap the shadow layers at large scales
 BASE_WIDTH      = WIDGET_WIDTH + SHADOW_PAD * 2
 
 # Base layout heights (px at 1.0×). Kept here so the window size, the layout
@@ -833,6 +834,8 @@ class PulseWidget(QWidget):
 
         self._build_ui()
         self._apply_scale(self.scale)
+        large = layout_metrics(SCALE_MAX)
+        self.setMaximumSize(large["width"], large["height"])
         self._build_tray()
         self._restore_position()
         self._apply_cursor()
@@ -919,11 +922,17 @@ class PulseWidget(QWidget):
         return QSize(m["width"], m["height"])
 
     def _apply_scale(self, value):
-        """Resize the card and every row/font in one pass.
+        """Scale in place, keeping the current top-left."""
+        self._apply_scale_to(value, self.x(), self.y())
+
+    def _apply_scale_to(self, value, x, y):
+        """Resize the card and every row/font, moving it in the same step.
 
         Called on launch, on Ctrl+wheel and continuously while a corner is
-        dragged. It never persists by itself — the caller decides when the
-        new scale is final.
+        dragged. `setGeometry` sends one configure request (size + position)
+        instead of the fixed-size-plus-move pair, which made dragging stutter
+        and let the window manager race the requested position. It never
+        persists by itself — the caller decides when the new scale is final.
         """
         s = clamp_scale(value)
         self.scale = s
@@ -955,7 +964,12 @@ class PulseWidget(QWidget):
                 " color:#fff;}")
 
         self._apply_fonts(s)
-        self.setFixedSize(m["width"], m["height"])
+        # Recompute the layout minimum before resizing: otherwise a big shrink
+        # (e.g. 4x -> 0.5x in one fast drag) is clamped by the *previous*
+        # scale's minimum and the window snaps back for a frame. It also lets
+        # the layout do its work once per frame instead of twice.
+        self.root_layout.activate()
+        self.setGeometry(int(x), int(y), m["width"], m["height"])
         self.update()
 
     def _apply_fonts(self, scale):
@@ -999,13 +1013,20 @@ class PulseWidget(QWidget):
         shadow_pen = max(1, round(2 * s))
         shadow_dy = round(2 * s)
         card = QRectF(self.rect()).adjusted(pad, pad, -pad, -pad)
-        # soft shadow: expanding translucent outlines
+        # soft shadow: expanding translucent outlines. The layer count is
+        # capped so a 4x card does not paint 48 full-size rounded rects every
+        # frame; the outermost layers are a couple of pixels apart and the
+        # gradient is visually unchanged.
         p.setBrush(Qt.NoBrush)
-        for i in range(pad, 0, -1):
-            alpha = int(38 * (1 - i / (pad + 1)) ** 2)
+        steps = min(pad, SHADOW_MAX_STEPS)
+        for step in range(steps, 0, -1):
+            offset = step * pad / steps
+            alpha = int(38 * (1 - offset / (pad + 1)) ** 2)
             p.setPen(QPen(QColor(0, 0, 0, alpha), shadow_pen))
-            p.drawRoundedRect(card.adjusted(-i, -i + shadow_dy, i, i + shadow_dy),
-                              corner + i * 0.6, corner + i * 0.6)
+            p.drawRoundedRect(
+                card.adjusted(-offset, -offset + shadow_dy,
+                              offset, offset + shadow_dy),
+                corner + offset * 0.6, corner + offset * 0.6)
         # glass card
         path = QPainterPath()
         path.addRoundedRect(card, corner, corner)
@@ -1138,11 +1159,11 @@ class PulseWidget(QWidget):
         old_h = max(1, self.height())
         fx = min(max((global_pos.x() - self.x()) / old_w, 0.0), 1.0)
         fy = min(max((global_pos.y() - self.y()) / old_h, 0.0), 1.0)
-        self._apply_scale(new_scale)
-        x = round(global_pos.x() - fx * self.width())
-        y = round(global_pos.y() - fy * self.height())
-        self.move(x, y)
-        self._keep_on_screen()
+        target = layout_metrics(new_scale)
+        x = round(global_pos.x() - fx * target["width"])
+        y = round(global_pos.y() - fy * target["height"])
+        x, y = self._clamp_pos(x, y, target["width"], target["height"])
+        self._apply_scale_to(new_scale, x, y)
 
     def _begin_resize(self, corner: str, global_pos: QPoint):
         fg = self.frameGeometry()
@@ -1166,42 +1187,44 @@ class PulseWidget(QWidget):
         scale = corner_drag_scale(
             r["corner"], dx, dy, self._base_size.width(),
             self._base_size.height(), r["start_scale"])
-        if scale != self.scale:
-            self._apply_scale(scale)
-        size = self.size()
-        self.move(corner_resize_pos(r["corner"], r["anchor"],
-                                    size.width(), size.height()))
+        if scale == self.scale:
+            return
+        target = layout_metrics(scale)
+        pos = corner_resize_pos(r["corner"], r["anchor"],
+                                target["width"], target["height"])
+        self._apply_scale_to(scale, pos.x(), pos.y())
 
     def _update_hover_cursor(self, global_pos: QPoint):
         local = self.mapFromGlobal(global_pos)
         corner = resize_corner(local, self.width(), self.height(), self.scale)
         if corner:
-            self.setCursor(CORNER_CURSORS[corner])
+            shape = CORNER_CURSORS[corner]
         elif self.pinned:
-            self.setCursor(Qt.ArrowCursor)
+            shape = Qt.ArrowCursor
         else:
-            self.setCursor(Qt.SizeAllCursor)
+            shape = Qt.SizeAllCursor
+        # setCursor on every mouse move means an X cursor round-trip per event.
+        if self.cursor().shape() != shape:
+            self.setCursor(shape)
 
-    def _keep_on_screen(self):
-        """Nudge the window back inside the current screen after zooming in."""
+    def _clamp_pos(self, x, y, width, height):
+        """Clamp a target rect into the screen it is centred on."""
         app = QApplication.instance()
-        screen = (app.screenAt(self.frameGeometry().center())
-                  if app is not None else None)
+        center = QPoint(x + width // 2, y + height // 2)
+        screen = app.screenAt(center) if app is not None else None
         screen = screen or QApplication.primaryScreen()
         if screen is None:
-            return
+            return x, y
         avail = screen.availableGeometry()
-        w, h = self.width(), self.height()
-        if w >= avail.width():
+        if width >= avail.width():
             x = avail.left()
         else:
-            x = max(avail.left(), min(self.x(), avail.right() - w + 1))
-        if h >= avail.height():
+            x = max(avail.left(), min(x, avail.right() - width + 1))
+        if height >= avail.height():
             y = avail.top()
         else:
-            y = max(avail.top(), min(self.y(), avail.bottom() - h + 1))
-        if (x, y) != (self.x(), self.y()):
-            self.move(x, y)
+            y = max(avail.top(), min(y, avail.bottom() - height + 1))
+        return x, y
 
     def toggle_pin(self):
         self.pinned = not self.pinned
@@ -1272,10 +1295,10 @@ class PulseWidget(QWidget):
         virt = QApplication.primaryScreen().availableVirtualGeometry()
         x = max(virt.left(), min(x, virt.right() - 60))
         y = max(virt.top(), min(y, virt.bottom() - 60))
-        self.move(x, y)
         # A saved position from a larger-and-further-right window must not put
         # the restored (possibly bigger) card off-screen on this launch.
-        self._keep_on_screen()
+        x, y = self._clamp_pos(x, y, self.width(), self.height())
+        self.setGeometry(x, y, self.width(), self.height())
 
     # ---------------- language ----------------
     def _make_language_menu(self, parent) -> QMenu:
