@@ -45,9 +45,14 @@ jobs:
       - name: Add NSIS to PATH
         shell: pwsh
         run: echo "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Read version from tag
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          "PULSE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Build installer
         shell: cmd
-        run: windows\build.bat
+        run: windows\build.bat %PULSE_VERSION%
       # ---------------------------------------------------------------------
       # Code signing (SignPath Foundation — free for OSS). Disabled until the
       # project is approved and configured. See SIGNING.md, then set repo
