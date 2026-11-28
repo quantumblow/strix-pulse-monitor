@@ -87,29 +87,22 @@ REFRESH_MS   = 1000       # UI refresh interval
 # very large widget stays legible without turning into billboard-sized digits.
 SCALE_MIN       = 0.5
 SCALE_MAX       = 4.0
-# One wheel notch = this fraction of the current scale. PULSE_ZOOM_STEP is
-# a temporary A/B knob (0.01–0.5), e.g. 0.05 for the original five-percent step.
-try:
-    SCALE_STEP = min(0.5, max(0.01,
-                              float(os.environ.get("PULSE_ZOOM_STEP", "0.10"))))
-except ValueError:
-    SCALE_STEP = 0.10
+SCALE_STEP      = 0.10    # one wheel notch = 10 % of the current scale
 FONT_SCALE_MAX  = 2.0
 DEFAULT_SCALE   = 1.0
 RESIZE_GRIP     = 14      # corner hit zone at 1.0× (px), clamped below
 RESIZE_GRIP_MIN = 10
 RESIZE_GRIP_MAX = 24
 SHADOW_MAX_STEPS = 24     # cap the shadow layers at large scales
-# Wheel zoom easing. The settle threshold is 0.002 of a scale step, i.e.
-# ln(25) time constants. PULSE_ZOOM_EASE_MS is a temporary A/B test knob:
+# Wheel zoom easing. This is the full animation duration; smoothstep spreads
+# the step evenly over it instead of front-loading most of the movement into
+# the first frame. PULSE_ZOOM_EASE_MS is a temporary A/B test knob:
 # 0 disables easing; any positive value is a duration in milliseconds (no
-# hard upper bound, so 0–200 is all valid).
+# hard upper bound, so 0–300 is all valid).
 try:
-    ZOOM_EASE_MS = max(0, int(os.environ.get("PULSE_ZOOM_EASE_MS", "80")))
+    ZOOM_EASE_MS = max(0, int(os.environ.get("PULSE_ZOOM_EASE_MS", "160")))
 except ValueError:
-    ZOOM_EASE_MS = 80
-ZOOM_EASE_TAU = ((ZOOM_EASE_MS / 1000.0) / math.log(25.0)
-                 if ZOOM_EASE_MS else 0.0)
+    ZOOM_EASE_MS = 160
 BASE_WIDTH      = WIDGET_WIDTH + SHADOW_PAD * 2
 
 # Base layout heights (px at 1.0×). Kept here so the window size, the layout
@@ -835,6 +828,7 @@ class PulseWidget(QWidget):
         # time-based ease-out makes one notch feel like a continuous zoom
         # instead of a one-step window jump.
         self._zoom_target = self.scale
+        self._zoom_start_scale = self.scale
         self._zoom_anchor: tuple[QPoint, float, float] | None = None
         self._zoom_clock = QElapsedTimer()
         self._zoom_timer = QTimer(self)
@@ -1194,7 +1188,7 @@ class PulseWidget(QWidget):
         if target == self.scale:
             self._stop_zoom()
             return
-        if ZOOM_EASE_TAU <= 0:
+        if ZOOM_EASE_MS <= 0:
             # A/B test mode: apply the notch immediately (still one geometry
             # update, so it stays free of the old jitter).
             self._zoom_frame(target)
@@ -1203,8 +1197,9 @@ class PulseWidget(QWidget):
             self._persist()
             self._update_hover_cursor(QCursor.pos())
             return
+        self._zoom_start_scale = self.scale
+        self._zoom_clock.restart()
         if not self._zoom_timer.isActive():
-            self._zoom_clock.restart()
             self._zoom_timer.start()
 
     def _zoom_frame(self, new_scale):
@@ -1219,21 +1214,24 @@ class PulseWidget(QWidget):
         self._apply_scale_to(new_scale, x, y)
 
     def _zoom_tick(self):
-        """One eased frame: exponential approach to the target scale.
+        """One smoothstep frame over ZOOM_EASE_MS milliseconds.
 
-        ZOOM_EASE_TAU controls how quickly a notch settles: ~80 ms by default,
-        so it feels snappy while still animating instead of jumping.
+        Smoothstep is deliberate: a plain exponential ease-out puts most of a
+        10 % step into the first frame, which still reads as a jump. This curve
+        starts and ends slowly and spends its frames moving the window.
         """
         if self._zoom_anchor is None:
             self._zoom_timer.stop()
             return
-        dt = max(0.001, min(self._zoom_clock.restart() / 1000.0, 0.05))
-        remaining = self._zoom_target - self.scale
-        if ZOOM_EASE_TAU <= 0 or abs(remaining) <= 0.002:
+        elapsed = self._zoom_clock.elapsed()
+        if ZOOM_EASE_MS <= 0 or elapsed >= ZOOM_EASE_MS:
             new_scale = self._zoom_target
             done = True
         else:
-            new_scale = self.scale + remaining * (1 - math.exp(-dt / ZOOM_EASE_TAU))
+            t = max(0.0, min(elapsed / ZOOM_EASE_MS, 1.0))
+            eased = t * t * (3.0 - 2.0 * t)     # smoothstep
+            new_scale = (self._zoom_start_scale
+                         + (self._zoom_target - self._zoom_start_scale) * eased)
             done = False
 
         self._zoom_frame(new_scale)

@@ -119,7 +119,7 @@ def test_wheel_zoom_is_anchored_under_the_pointer(widget):
 
 
 def test_wheel_zoom_with_easing_disabled(widget, monkeypatch):
-    monkeypatch.setattr(pm, "ZOOM_EASE_TAU", 0.0)
+    monkeypatch.setattr(pm, "ZOOM_EASE_MS", 0)
     one = pm.clamp_scale(1.0 + pm.SCALE_STEP)
     _send_wheel(widget, 1)
     assert not widget._zoom_timer.isActive()

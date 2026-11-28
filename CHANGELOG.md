@@ -28,10 +28,12 @@ All notable changes to Strix Pulse Monitor are documented here. Format:
   produces one native configure per frame instead of an extra minimum-size
   resize (which made the window appear to jump sideways). Pointer-anchored
   wheel zoom keeps the window under the cursor instead of walking away.
-- **Eased Ctrl+wheel zoom** — a wheel notch still adds exactly 10 %, but the card
-  now eases to the new scale in roughly 80 ms instead of jumping in one frame.
-  Rapid notches retarget the same animation, and the final scale is persisted
-  when it settles.
+- **Eased Ctrl+wheel zoom** — a wheel notch still adds exactly 10 %, but the
+  card now eases to the new scale with smoothstep over roughly 160 ms instead
+  of jumping in one frame. Smoothstep spreads the movement evenly across the
+  frames; the previous exponential ease-out front-loaded most of a step into
+  the first frame. Rapid notches retarget the same animation, and the final
+  scale is persisted when it settles.
 - Version defaults bumped to **1.0.3** in the `.deb` builder and the NSIS
   installer fallback (release builds still take the tag version).
 

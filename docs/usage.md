@@ -23,8 +23,7 @@ above every other window.
 The card scales proportionally between **0.5× and 4×**, and the chosen size is
 remembered across launches.
 
-- **Ctrl + mouse wheel** changes the scale by **10 % per notch**, eased over a
-  fraction of a second and anchored under the pointer, so the card grows or
+- **Ctrl + mouse wheel** changes the scale by **10 % per notch**, eased over about 160 ms and anchored under the pointer, so the card grows or
   shrinks around what you are looking at instead of jumping between sizes.
 - **Drag a corner** to resize: both dimensions scale together, the opposite
   corner stays fixed, and the grab zone is `clamp(14 × scale, 10, 24)` px.
