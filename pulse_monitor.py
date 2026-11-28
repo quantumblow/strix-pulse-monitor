@@ -94,6 +94,7 @@ RESIZE_GRIP     = 14      # corner hit zone at 1.0× (px), clamped below
 RESIZE_GRIP_MIN = 10
 RESIZE_GRIP_MAX = 24
 SHADOW_MAX_STEPS = 24     # cap the shadow layers at large scales
+ZOOM_EASE_TAU = 0.037     # wheel zoom time constant (~120 ms to settle)
 BASE_WIDTH      = WIDGET_WIDTH + SHADOW_PAD * 2
 
 # Base layout heights (px at 1.0×). Kept here so the window size, the layout
@@ -1183,7 +1184,11 @@ class PulseWidget(QWidget):
             self._zoom_timer.start()
 
     def _zoom_tick(self):
-        """One eased frame: exponential approach to the target scale."""
+        """One eased frame: exponential approach to the target scale.
+
+        ZOOM_EASE_TAU controls how quickly a notch settles: ~120 ms here, so
+        it feels snappy while still animating instead of jumping.
+        """
         if self._zoom_anchor is None:
             self._zoom_timer.stop()
             return
@@ -1193,7 +1198,7 @@ class PulseWidget(QWidget):
             new_scale = self._zoom_target
             done = True
         else:
-            new_scale = self.scale + remaining * (1 - math.exp(-dt / 0.055))
+            new_scale = self.scale + remaining * (1 - math.exp(-dt / ZOOM_EASE_TAU))
             done = False
 
         anchor, fx, fy = self._zoom_anchor
