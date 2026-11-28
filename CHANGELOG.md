@@ -6,7 +6,7 @@ All notable changes to Strix Pulse Monitor are documented here. Format:
 ## [1.0.3] - 2026-11-28
 
 ### Added
-- **Window scaling (0.5×–4×)** — Ctrl + mouse wheel zooms in 5 % steps around
+- **Window scaling (0.5×–4×)** — Ctrl + mouse wheel zooms in 10 % steps around
   the pointer; the scale is saved as `scale` in `settings.json` (default 1.0)
   and restored on launch. Zoomed windows are nudged back inside the screen so
   the card can never grow out of reach.
@@ -28,7 +28,7 @@ All notable changes to Strix Pulse Monitor are documented here. Format:
   produces one native configure per frame instead of an extra minimum-size
   resize (which made the window appear to jump sideways). Pointer-anchored
   wheel zoom keeps the window under the cursor instead of walking away.
-- **Eased Ctrl+wheel zoom** — a wheel notch still adds exactly 5 %, but the card
+- **Eased Ctrl+wheel zoom** — a wheel notch still adds exactly 10 %, but the card
   now eases to the new scale in roughly 80 ms instead of jumping in one frame.
   Rapid notches retarget the same animation, and the final scale is persisted
   when it settles.

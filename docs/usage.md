@@ -8,7 +8,7 @@ above every other window.
 |---|---|
 | Move it | Left-click and drag anywhere on the card |
 | Resize it | Drag any of the four corners |
-| Zoom it | Ctrl + mouse wheel (eased, 5 % per notch) |
+| Zoom it | Ctrl + mouse wheel (eased, 10 % per notch) |
 | Pin / lock position | Click the pin button (locks moving; corner resizing still works) |
 | Float above / behind other windows | Right-click the widget or tray icon → "Always on top / bottom" (checked = floats above) |
 | Hide to tray | Click ✕ |
@@ -23,7 +23,7 @@ above every other window.
 The card scales proportionally between **0.5× and 4×**, and the chosen size is
 remembered across launches.
 
-- **Ctrl + mouse wheel** changes the scale by **5 % per notch**, eased over a
+- **Ctrl + mouse wheel** changes the scale by **10 % per notch**, eased over a
   fraction of a second and anchored under the pointer, so the card grows or
   shrinks around what you are looking at instead of jumping between sizes.
 - **Drag a corner** to resize: both dimensions scale together, the opposite

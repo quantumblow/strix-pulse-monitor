@@ -10,7 +10,7 @@ Requires Python 3.10+, PySide6 and psutil. The widget tests force Qt's
 **offscreen** platform (see `conftest.py`) so they never depend on a window
 manager, a tray or the current desktop session; `DISPLAY` is not needed.
 
-- `test_scaling.py` — pure helpers: the 0.5–4.0 clamp, 5 % wheel steps, the 2×
+- `test_scaling.py` — pure helpers: the 0.5–4.0 clamp, wheel-step math, the 2×
   font cap, the `clamp(14 × scale, 10, 24)` grip, corner hit-testing, uniform
   drag math, opposite-corner anchoring, layout metrics and settings validation.
 - `test_scaling_ui.py` — a real `PulseWidget` driven through its event

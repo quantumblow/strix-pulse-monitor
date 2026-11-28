@@ -23,10 +23,12 @@ def test_clamp_scale_defaults_and_bounds():
     assert pm.clamp_scale(math.inf) == pm.DEFAULT_SCALE
 
 
-def test_zoom_step_is_five_percent_per_notch():
-    assert pm.zoomed_scale(1.0, 1) == 1.05
-    assert pm.zoomed_scale(1.0, 2) == 1.10
-    assert pm.zoomed_scale(2.0, -4) == 1.80
+def test_zoom_step_matches_the_configured_step():
+    step = pm.SCALE_STEP
+    assert 0.01 <= step <= 0.5
+    assert pm.zoomed_scale(1.0, 1) == pm.clamp_scale(1.0 + step)
+    assert pm.zoomed_scale(1.0, 2) == pm.clamp_scale(1.0 + 2 * step)
+    assert pm.zoomed_scale(2.0, -4) == pm.clamp_scale(2.0 - 4 * step)
     # ... and stays inside the allowed range.
     assert pm.zoomed_scale(pm.SCALE_MAX, 1) == pm.SCALE_MAX
     assert pm.zoomed_scale(pm.SCALE_MIN, -1) == pm.SCALE_MIN

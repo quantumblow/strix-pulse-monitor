@@ -6,7 +6,7 @@ Features:
   • Live CPU, GPU (utilisation + VRAM), RAM, Storage + network down/up traffic
   • Frameless glass design with painted soft shadow (no Qt effect glitches)
   • Drag anywhere to reposition, Pin (📌) to lock in place
-  • Uniform 0.5×–4× window scaling: corner drag or Ctrl+wheel (5 %/notch),
+  • Uniform 0.5×–4× window scaling: corner drag or Ctrl+wheel (10 %/notch),
     with text capped at 2× so a large card stays sharp
   • Switch between always-on-top and desktop-level layering from the menus
   • Right-click context menu on the widget itself
@@ -87,7 +87,13 @@ REFRESH_MS   = 1000       # UI refresh interval
 # very large widget stays legible without turning into billboard-sized digits.
 SCALE_MIN       = 0.5
 SCALE_MAX       = 4.0
-SCALE_STEP      = 0.05    # one wheel notch = 5 %
+# One wheel notch = this fraction of the current scale. PULSE_ZOOM_STEP is
+# a temporary A/B knob (0.01–0.5), e.g. 0.05 for the original five-percent step.
+try:
+    SCALE_STEP = min(0.5, max(0.01,
+                              float(os.environ.get("PULSE_ZOOM_STEP", "0.10"))))
+except ValueError:
+    SCALE_STEP = 0.10
 FONT_SCALE_MAX  = 2.0
 DEFAULT_SCALE   = 1.0
 RESIZE_GRIP     = 14      # corner hit zone at 1.0× (px), clamped below
@@ -96,7 +102,8 @@ RESIZE_GRIP_MAX = 24
 SHADOW_MAX_STEPS = 24     # cap the shadow layers at large scales
 # Wheel zoom easing. The settle threshold is 0.002 of a scale step, i.e.
 # ln(25) time constants. PULSE_ZOOM_EASE_MS is a temporary A/B test knob:
-# set it to 0 to disable easing, or to any duration in milliseconds.
+# 0 disables easing; any positive value is a duration in milliseconds (no
+# hard upper bound, so 0–200 is all valid).
 try:
     ZOOM_EASE_MS = max(0, int(os.environ.get("PULSE_ZOOM_EASE_MS", "80")))
 except ValueError:
@@ -826,7 +833,7 @@ class PulseWidget(QWidget):
         self._quitting = False
         # Ctrl+wheel does not jump straight to the new scale: a short
         # time-based ease-out makes one notch feel like a continuous zoom
-        # instead of a 5 % window jump.
+        # instead of a one-step window jump.
         self._zoom_target = self.scale
         self._zoom_anchor: tuple[QPoint, float, float] | None = None
         self._zoom_clock = QElapsedTimer()
@@ -1156,7 +1163,7 @@ class PulseWidget(QWidget):
             self._persist()
 
     def wheelEvent(self, e):
-        """Ctrl + wheel: 5 % per notch, eased and anchored at the pointer."""
+        """Ctrl + wheel: SCALE_STEP per notch, eased and anchored at the pointer."""
         if self._resize is not None or self._drag_offset is not None:
             # A held drag owns the window geometry; never start a second mover.
             e.accept()
