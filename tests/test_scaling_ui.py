@@ -6,6 +6,7 @@ handlers the application uses, without the single-instance lock / event loop.
 """
 
 import os
+import time
 
 import pytest
 
@@ -13,6 +14,7 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, QSize, Qt   # noqa: E402
 from PySide6.QtGui import QMouseEvent, QWheelEvent             # noqa: E402
+from PySide6.QtTest import QTest                                # noqa: E402
 from PySide6.QtWidgets import QApplication                     # noqa: E402
 
 import pulse_monitor as pm                                     # noqa: E402
@@ -53,6 +55,15 @@ def _send_wheel(w, notches, ctrl=True):
     QApplication.processEvents()
 
 
+def _settle_zoom(w, timeout=3.0):
+    """Spin the event loop until the eased zoom animation reaches its target."""
+    deadline = time.monotonic() + timeout
+    while w._zoom_timer.isActive() and time.monotonic() < deadline:
+        QTest.qWait(5)
+    QApplication.processEvents()
+    assert not w._zoom_timer.isActive(), "zoom animation did not settle"
+
+
 def _send_move(w, local, buttons=Qt.NoButton):
     glob = w.mapToGlobal(local)
     ev = QMouseEvent(QEvent.MouseMove, QPointF(local), QPointF(glob),
@@ -81,11 +92,13 @@ def test_default_scale_and_geometry(widget):
 # --------------------------------------------------------------- Ctrl + wheel
 def test_ctrl_wheel_steps_five_percent_and_persists(widget):
     _send_wheel(widget, 1)
+    _settle_zoom(widget)
     assert widget.scale == 1.05
     assert widget.size() == widget._size_for_scale(1.05)
     assert pm.load_settings()["scale"] == 1.05
 
     _send_wheel(widget, -2)
+    _settle_zoom(widget)
     assert widget.scale == 0.95
     assert widget.size() == widget._size_for_scale(0.95)
 
@@ -96,6 +109,7 @@ def test_wheel_zoom_is_anchored_under_the_pointer(widget):
     anchor = widget.mapToGlobal(QPoint(widget.width() // 2,
                                        widget.height() // 2))
     _send_wheel(widget, 1)
+    _settle_zoom(widget)
     after = widget.mapToGlobal(QPoint(widget.width() // 2,
                                       widget.height() // 2))
     assert abs(after.x() - anchor.x()) <= 2
@@ -110,18 +124,20 @@ def test_plain_wheel_does_not_zoom(widget):
 
 def test_wheel_zoom_clamps_to_limits(widget):
     _send_wheel(widget, 100)
+    _settle_zoom(widget)
     assert widget.scale == pm.SCALE_MAX
     assert widget.size() == widget._size_for_scale(pm.SCALE_MAX)
 
     _send_wheel(widget, -200)
+    _settle_zoom(widget)
     assert widget.scale == pm.SCALE_MIN
     assert widget.size() == widget._size_for_scale(pm.SCALE_MIN)
 
 
 # ------------------------------------------------------------------ font cap
 def test_large_scale_jump_applies_exact_size(widget):
-    # A fast 4x -> 0.5x drag used to be clamped by the previous layout minimum
-    # for one frame because setGeometry ran before the layout was re-activated.
+    # A fast 4x -> 0.5x drag must not be clamped by the previous layout
+    # minimum (the layout is intentionally unconstrained).
     widget._apply_scale(4.0)
     assert widget.size() == widget._size_for_scale(4.0)
     widget._apply_scale(0.5)
@@ -226,6 +242,7 @@ def test_corner_drag_scales_and_anchors_opposite_corner(widget, corner, dx, dy):
 def test_pin_still_allows_zoom(widget):
     widget.pinned = True
     _send_wheel(widget, 1)
+    _settle_zoom(widget)
     assert widget.scale == 1.05
 
 

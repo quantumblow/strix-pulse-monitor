@@ -15,7 +15,7 @@ from PySide6.QtCore import QPoint                              # noqa: E402
 def test_clamp_scale_defaults_and_bounds():
     assert pm.clamp_scale(0.1) == pm.SCALE_MIN
     assert pm.clamp_scale(9) == pm.SCALE_MAX
-    assert pm.clamp_scale(1.234) == 1.23
+    assert pm.clamp_scale(1.234) == 1.234
     assert pm.clamp_scale("1.5") == 1.5
     assert pm.clamp_scale("nonsense") == pm.DEFAULT_SCALE
     assert pm.clamp_scale(None) == pm.DEFAULT_SCALE

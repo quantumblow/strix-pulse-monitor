@@ -24,9 +24,14 @@ All notable changes to Strix Pulse Monitor are documented here. Format:
 - **Smoother zoom and corner drags** — each scale change now applies size and
   position with a single `setGeometry` request instead of re-applying fixed-size
   constraints every frame, and the shadow layer count is capped at large
-  scales. A fast 4×→0.5× drag also re-activates the layout first, so it no
-  longer snaps to the previous scale's minimum for a frame. Pointer-anchored
+  scales. The root layout no longer constrains the top-level size, so a resize
+  produces one native configure per frame instead of an extra minimum-size
+  resize (which made the window appear to jump sideways). Pointer-anchored
   wheel zoom keeps the window under the cursor instead of walking away.
+- **Eased Ctrl+wheel zoom** — a wheel notch still adds exactly 5 %, but the card
+  now eases to the new scale over a short animation instead of jumping in one
+  frame. Rapid notches retarget the same animation, and the final scale is
+  persisted when it settles.
 - Version defaults bumped to **1.0.3** in the `.deb` builder and the NSIS
   installer fallback (release builds still take the tag version).
 

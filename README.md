@@ -18,7 +18,7 @@ Part of the open-source **[Strix Advanced Tools](https://github.com/strix-tool)*
 - Live **CPU, GPU, RAM, Storage** usage and **network down/up** traffic, refreshed once a second.
 - **Frameless glass widget** — drag to move, pin to lock, hide to tray.
 - **Resizable, zoomable card** — drag any corner for a proportional 0.5×–4× window,
-  or Ctrl+wheel in 5 % steps. Text scales with the window up to 2× and then stays
+  or Ctrl+wheel in eased 5 % steps. Text scales with the window up to 2× and then stays
   put, so a large card stays sharp instead of turning into billboard digits.
 - **GPU support:** NVIDIA via `nvidia-smi` (utilisation **and VRAM used/total**); on Windows,
   Intel/AMD via GPU performance counters (utilisation only); on **Linux, AMD via sysfs**
@@ -65,7 +65,7 @@ Details: [docs/install-linux.md](docs/install-linux.md).
 |---|---|
 | Move | Left-click and drag |
 | Resize | Drag any corner (aspect ratio kept, opposite corner anchored) |
-| Zoom | Ctrl + mouse wheel — 5 % per notch, 0.5×–4× |
+| Zoom | Ctrl + mouse wheel — eased 5 % per notch, 0.5×–4× |
 | Pin / lock | Click the pin button (stops moving; corners still resize) |
 | Hide to tray | Click ✕ |
 | Show/hide | Click the tray icon |

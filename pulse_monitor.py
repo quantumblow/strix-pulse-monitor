@@ -35,12 +35,13 @@ import threading
 import time
 
 import psutil
-from PySide6.QtCore import QLockFile, QPoint, QRectF, QSize, Qt, QTimer
+from PySide6.QtCore import (QElapsedTimer, QLockFile, QPoint, QRectF, QSize,
+                            Qt, QTimer)
 from PySide6.QtGui import (QAction, QActionGroup, QColor, QCursor, QFont,
                            QIcon, QPainter, QPainterPath, QPen, QPixmap)
-from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QMenu,
-                               QMessageBox, QPushButton, QSystemTrayIcon,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLayout,
+                               QMenu, QMessageBox, QPushButton,
+                               QSystemTrayIcon, QVBoxLayout, QWidget)
 
 from strix_i18n import (Translator, LANGS, LANG_CODES, LANG_NAME,
                         detect_os_lang)
@@ -394,7 +395,7 @@ def clamp_scale(value) -> float:
         return DEFAULT_SCALE
     if not math.isfinite(s):
         return DEFAULT_SCALE
-    return round(max(SCALE_MIN, min(s, SCALE_MAX)), 2)
+    return round(max(SCALE_MIN, min(s, SCALE_MAX)), 3)
 
 
 def zoomed_scale(current, notches: float) -> float:
@@ -814,6 +815,15 @@ class PulseWidget(QWidget):
         self._drag_offset: QPoint | None = None
         self._resize: dict | None = None
         self._quitting = False
+        # Ctrl+wheel does not jump straight to the new scale: a short
+        # time-based ease-out makes one notch feel like a continuous zoom
+        # instead of a 5 % window jump.
+        self._zoom_target = self.scale
+        self._zoom_anchor: tuple[QPoint, float, float] | None = None
+        self._zoom_clock = QElapsedTimer()
+        self._zoom_timer = QTimer(self)
+        self._zoom_timer.setInterval(16)
+        self._zoom_timer.timeout.connect(self._zoom_tick)
 
         self.setWindowTitle(APP_NAME)
         # Desktop widget: sit at the BOTTOM of the z-order by default, so
@@ -853,6 +863,11 @@ class PulseWidget(QWidget):
     # ---------------- UI ----------------
     def _build_ui(self):
         root = QVBoxLayout(self)
+        # We own the window geometry (it is frameless and scaled by hand). A
+        # constrained layout would resize the top-level to the new minimum
+        # height before our setGeometry runs, producing an extra native
+        # configure per frame and visible jitter while zooming.
+        root.setSizeConstraint(QLayout.SetNoConstraint)
         self.root_layout = root
         pad = SHADOW_PAD
         root.setContentsMargins(pad + CONTENT_PAD_X, pad + CONTENT_PAD_TOP,
@@ -923,7 +938,9 @@ class PulseWidget(QWidget):
 
     def _apply_scale(self, value):
         """Scale in place, keeping the current top-left."""
+        self._stop_zoom()
         self._apply_scale_to(value, self.x(), self.y())
+        self._zoom_target = self.scale
 
     def _apply_scale_to(self, value, x, y):
         """Resize the card and every row/font, moving it in the same step.
@@ -964,11 +981,6 @@ class PulseWidget(QWidget):
                 " color:#fff;}")
 
         self._apply_fonts(s)
-        # Recompute the layout minimum before resizing: otherwise a big shrink
-        # (e.g. 4x -> 0.5x in one fast drag) is clamped by the *previous*
-        # scale's minimum and the window snaps back for a frame. It also lets
-        # the layout do its work once per frame instead of twice.
-        self.root_layout.activate()
         self.setGeometry(int(x), int(y), m["width"], m["height"])
         self.update()
 
@@ -1098,6 +1110,7 @@ class PulseWidget(QWidget):
         if e.button() != Qt.LeftButton:
             super().mousePressEvent(e)
             return
+        self._stop_zoom()
         gp = e.globalPosition().toPoint()
         corner = resize_corner(self.mapFromGlobal(gp), self.width(),
                                self.height(), self.scale)
@@ -1134,36 +1147,74 @@ class PulseWidget(QWidget):
             self._persist()
 
     def wheelEvent(self, e):
-        """Ctrl + wheel zooms by 5 % per notch, anchored at the pointer."""
+        """Ctrl + wheel: 5 % per notch, eased and anchored at the pointer."""
+        if self._resize is not None or self._drag_offset is not None:
+            # A held drag owns the window geometry; never start a second mover.
+            e.accept()
+            return
         if e.modifiers() & Qt.ControlModifier:
             delta = e.angleDelta().y() or e.pixelDelta().y()
             if delta:
-                notches = delta / 120.0
-                new_scale = zoomed_scale(self.scale, notches)
-                if new_scale != self.scale:
-                    self._zoom_at(new_scale, e.globalPosition().toPoint())
-                    self._persist()
-                    self._update_hover_cursor(QCursor.pos())
+                target = zoomed_scale(self._zoom_target, delta / 120.0)
+                self._zoom_to(target, e.globalPosition().toPoint())
                 e.accept()
                 return
         super().wheelEvent(e)
 
-    def _zoom_at(self, new_scale, global_pos: QPoint):
-        """Zoom while keeping the card point under the pointer in place.
+    def _zoom_to(self, target, global_pos: QPoint):
+        """Set a new zoom target; the timer eases the card towards it."""
+        target = clamp_scale(target)
+        if target == self._zoom_target and self._zoom_timer.isActive():
+            return
+        if self._zoom_anchor is None:
+            # Remember the card point under the pointer for the whole burst so
+            # repeated notches cannot accumulate rounding drift.
+            fx = min(max((global_pos.x() - self.x())
+                         / max(1, self.width()), 0.0), 1.0)
+            fy = min(max((global_pos.y() - self.y())
+                         / max(1, self.height()), 0.0), 1.0)
+            self._zoom_anchor = (QPoint(global_pos), fx, fy)
+        self._zoom_target = target
+        if target == self.scale:
+            self._stop_zoom()
+            return
+        if not self._zoom_timer.isActive():
+            self._zoom_clock.restart()
+            self._zoom_timer.start()
 
-        Without this anchor, zooming out with the pointer near the middle would
-        eventually shrink the window out from under the cursor, and further
-        wheel notches would go to whatever is behind it.
-        """
-        old_w = max(1, self.width())
-        old_h = max(1, self.height())
-        fx = min(max((global_pos.x() - self.x()) / old_w, 0.0), 1.0)
-        fy = min(max((global_pos.y() - self.y()) / old_h, 0.0), 1.0)
+    def _zoom_tick(self):
+        """One eased frame: exponential approach to the target scale."""
+        if self._zoom_anchor is None:
+            self._zoom_timer.stop()
+            return
+        dt = max(0.001, min(self._zoom_clock.restart() / 1000.0, 0.05))
+        remaining = self._zoom_target - self.scale
+        if abs(remaining) <= 0.002:
+            new_scale = self._zoom_target
+            done = True
+        else:
+            new_scale = self.scale + remaining * (1 - math.exp(-dt / 0.055))
+            done = False
+
+        anchor, fx, fy = self._zoom_anchor
         target = layout_metrics(new_scale)
-        x = round(global_pos.x() - fx * target["width"])
-        y = round(global_pos.y() - fy * target["height"])
+        x = round(anchor.x() - fx * target["width"])
+        y = round(anchor.y() - fy * target["height"])
         x, y = self._clamp_pos(x, y, target["width"], target["height"])
         self._apply_scale_to(new_scale, x, y)
+
+        if done:
+            self._zoom_timer.stop()
+            self._zoom_anchor = None
+            self._zoom_target = self.scale
+            self._persist()
+            self._update_hover_cursor(QCursor.pos())
+
+    def _stop_zoom(self):
+        """Abandon/finish an animation instantly (e.g. when a drag starts)."""
+        self._zoom_timer.stop()
+        self._zoom_anchor = None
+        self._zoom_target = self.scale
 
     def _begin_resize(self, corner: str, global_pos: QPoint):
         fg = self.frameGeometry()
@@ -1424,6 +1475,7 @@ class PulseWidget(QWidget):
 
     def _quit(self):
         self._quitting = True
+        self._stop_zoom()
         self._persist()
         self.tray.hide()
         QApplication.quit()
