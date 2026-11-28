@@ -11,5 +11,9 @@
   "Unpin — allow dragging": "Lossa — tillåt dragning",
   "Pin — lock position": "Fäst — lås position",
   "Unpin": "Lossa",
-  "Pin": "Fäst"
+  "Pin": "Fäst",
+  "About": "Om",
+  "Version {version}": "Version {version}",
+  "Close": "Stäng",
+  "Open the GitHub repository": "Öppna GitHub-repositoriet"
 }

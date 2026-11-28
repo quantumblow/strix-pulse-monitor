@@ -13,6 +13,7 @@ above every other window.
 | Float above / behind other windows | Right-click the widget or tray icon → "Always on top / bottom" (checked = floats above) |
 | Hide to tray | Click ✕ |
 | Show / hide again | Click the tray icon |
+| About / GitHub | Right-click the widget or tray icon → About (version + fork link) |
 | Exit completely | Right-click the tray icon → Exit |
 
 > On a Wayland session the stacking hint is compositor-dependent; the X11
@@ -32,7 +33,9 @@ remembered across launches.
   corner itself is grabbable. The pin only locks moving, so a pinned widget can
   still be resized.
 - **Text stops growing at 2×** even when the card is larger; below 1× the text
-  shrinks along with the window. Rows and bars always keep the window's scale.
+  shrinks along with the window. Row heights and bar thickness follow the
+  window scale; all four bar tracks share the widest value column, so they keep
+  one uniform length and fill the row at every zoom.
 
 ## What the rows mean
 

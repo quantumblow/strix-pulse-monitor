@@ -11,5 +11,9 @@
   "Unpin — allow dragging": "Lösen — Verschieben erlauben",
   "Pin — lock position": "Anheften — Position sperren",
   "Unpin": "Lösen",
-  "Pin": "Anheften"
+  "Pin": "Anheften",
+  "About": "Über",
+  "Version {version}": "Version {version}",
+  "Close": "Schließen",
+  "Open the GitHub repository": "GitHub-Repository öffnen"
 }

@@ -11,5 +11,9 @@
   "Unpin — allow dragging": "Desafixar — permitir arrastar",
   "Pin — lock position": "Fixar — bloquear posição",
   "Unpin": "Desafixar",
-  "Pin": "Fixar"
+  "Pin": "Fixar",
+  "About": "Sobre",
+  "Version {version}": "Versão {version}",
+  "Close": "Fechar",
+  "Open the GitHub repository": "Abrir o repositório do GitHub"
 }

@@ -16,7 +16,10 @@ manager, a tray or the current desktop session; `DISPLAY` is not needed.
 - `test_scaling_ui.py` — a real `PulseWidget` driven through its event
   handlers: Ctrl+wheel (step, in-place resize, clamping), font cap on the actual
   labels, the four corner cursors, resizing from every corner, Pin locking
-  moving but not resizing, and scale/position persistence across a reload.
+  moving but not resizing, scale/position persistence across a reload, and the
+  meter tracks sharing one uniform length at 0.5×–4×.
+- `test_about.py` — the About dialog: semver version, the locked larger size,
+  the GitHub mark and its link, and the About entry in the tray menu.
 
 ## Manual X11 pass
 

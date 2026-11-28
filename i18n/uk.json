@@ -11,5 +11,9 @@
   "Unpin — allow dragging": "Відкріпити — дозволити переміщення",
   "Pin — lock position": "Закріпити — зафіксувати позицію",
   "Unpin": "Відкріпити",
-  "Pin": "Закріпити"
+  "Pin": "Закріпити",
+  "About": "Про програму",
+  "Version {version}": "Версія {version}",
+  "Close": "Закрити",
+  "Open the GitHub repository": "Відкрити репозиторій GitHub"
 }

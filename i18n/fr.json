@@ -11,5 +11,9 @@
   "Unpin — allow dragging": "Désépingler — autoriser le déplacement",
   "Pin — lock position": "Épingler — verrouiller la position",
   "Unpin": "Désépingler",
-  "Pin": "Épingler"
+  "Pin": "Épingler",
+  "About": "À propos",
+  "Version {version}": "Version {version}",
+  "Close": "Fermer",
+  "Open the GitHub repository": "Ouvrir le dépôt GitHub"
 }

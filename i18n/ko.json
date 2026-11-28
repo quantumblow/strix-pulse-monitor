@@ -11,5 +11,9 @@
   "Unpin — allow dragging": "고정 해제 — 끌기 허용",
   "Pin — lock position": "고정 — 위치 잠금",
   "Unpin": "고정 해제",
-  "Pin": "고정"
+  "Pin": "고정",
+  "About": "정보",
+  "Version {version}": "버전 {version}",
+  "Close": "닫기",
+  "Open the GitHub repository": "GitHub 저장소 열기"
 }

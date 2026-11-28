@@ -26,8 +26,8 @@ sudo apt install python3-pyside6.qtwidgets python3-pyside6.qtgui python3-pyside6
 ## Build a .deb
 
 ```bash
-./linux/build-deb.sh 1.0.0
-sudo apt install ./dist/strix-pulse-monitor_1.0.0_all.deb
+./linux/build-deb.sh 1.0.4
+sudo apt install ./dist/strix-pulse-monitor_1.0.4_all.deb
 ```
 
 PySide6 is a `Recommends` (not a hard `Depends`) because the package name differs across

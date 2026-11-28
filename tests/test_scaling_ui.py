@@ -89,6 +89,28 @@ def test_default_scale_and_geometry(widget):
     assert widget.size() == widget._size_for_scale(1.0)
 
 
+# ----------------------------------------------------------- meter row layout
+def test_meter_tracks_are_uniform_and_hug_text(widget):
+    """Every row shares the widest value column, so all four tracks match."""
+    for scale in (0.5, 1.0, 2.0, 4.0):
+        widget._apply_scale_to(scale, widget.x(), widget.y())
+        QApplication.processEvents()
+        gap = pm.METER_LABEL_GAP * pm.capped_font_scale(scale)
+        label_w = max(bar.label_width() for bar in widget._bars)
+        tracks = []
+        for bar in widget._bars:
+            assert bar.leading == pytest.approx(label_w + gap, abs=1)
+            assert bar.value_column >= bar.value_width()
+            assert (bar.leading + bar.track_width() + bar._value_gap()
+                    + bar.value_column) == pytest.approx(bar.width())
+            tracks.append(bar.track_width())
+        # One shared value column and one shared track length across all rows.
+        assert len({bar.value_column for bar in widget._bars}) == 1
+        assert all(t == pytest.approx(tracks[0], abs=0.5) for t in tracks)
+        # ... and still much longer than the old fixed 104 × scale track.
+        assert tracks[0] > 104 * scale
+
+
 # --------------------------------------------------------------- Ctrl + wheel
 def test_ctrl_wheel_steps_and_persists(widget):
     one = pm.clamp_scale(1.0 + pm.SCALE_STEP)

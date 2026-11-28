@@ -3,7 +3,7 @@
 ## Setup wizard (recommended)
 
 Download **`Strix-Pulse-Monitor-Setup.exe`** from
-[Releases](https://github.com/strix-tool/strix-pulse-monitor/releases) and run it. It is
+[Releases](https://github.com/quantumblow/strix-pulse-monitor/releases) and run it. It is
 a **per-user** install (no admin prompt), creates Start-Menu/optional Desktop shortcuts,
 an optional "start with Windows" entry, and an uninstaller in **Apps & features**.
 

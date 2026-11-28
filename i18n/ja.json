@@ -11,5 +11,9 @@
   "Unpin — allow dragging": "固定を解除 — ドラッグを許可",
   "Pin — lock position": "固定 — 位置をロック",
   "Unpin": "固定を解除",
-  "Pin": "固定"
+  "Pin": "固定",
+  "About": "バージョン情報",
+  "Version {version}": "バージョン {version}",
+  "Close": "閉じる",
+  "Open the GitHub repository": "GitHub リポジトリを開く"
 }

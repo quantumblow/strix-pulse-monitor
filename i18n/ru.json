@@ -11,5 +11,9 @@
   "Unpin — allow dragging": "Открепить — разрешить перемещение",
   "Pin — lock position": "Закрепить — зафиксировать положение",
   "Unpin": "Открепить",
-  "Pin": "Закрепить"
+  "Pin": "Закрепить",
+  "About": "О программе",
+  "Version {version}": "Версия {version}",
+  "Close": "Закрыть",
+  "Open the GitHub repository": "Открыть репозиторий GitHub"
 }

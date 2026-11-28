@@ -11,5 +11,9 @@
   "Unpin — allow dragging": "取消固定 — 允许拖动",
   "Pin — lock position": "固定 — 锁定位置",
   "Unpin": "取消固定",
-  "Pin": "固定"
+  "Pin": "固定",
+  "About": "关于",
+  "Version {version}": "版本 {version}",
+  "Close": "关闭",
+  "Open the GitHub repository": "打开 GitHub 仓库"
 }

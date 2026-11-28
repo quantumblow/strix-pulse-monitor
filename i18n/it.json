@@ -11,5 +11,9 @@
   "Unpin — allow dragging": "Sblocca — consenti il trascinamento",
   "Pin — lock position": "Fissa — blocca posizione",
   "Unpin": "Sblocca",
-  "Pin": "Fissa"
+  "Pin": "Fissa",
+  "About": "Informazioni",
+  "Version {version}": "Versione {version}",
+  "Close": "Chiudi",
+  "Open the GitHub repository": "Apri il repository GitHub"
 }

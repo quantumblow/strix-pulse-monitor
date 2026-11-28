@@ -11,5 +11,9 @@
   "Unpin — allow dragging": "Odepnij — zezwól na przeciąganie",
   "Pin — lock position": "Przypnij — zablokuj pozycję",
   "Unpin": "Odepnij",
-  "Pin": "Przypnij"
+  "Pin": "Przypnij",
+  "About": "O programie",
+  "Version {version}": "Wersja {version}",
+  "Close": "Zamknij",
+  "Open the GitHub repository": "Otwórz repozytorium GitHub"
 }

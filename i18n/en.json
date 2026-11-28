@@ -11,5 +11,9 @@
   "Unpin — allow dragging": "Unpin — allow dragging",
   "Pin — lock position": "Pin — lock position",
   "Unpin": "Unpin",
-  "Pin": "Pin"
+  "Pin": "Pin",
+  "About": "About",
+  "Version {version}": "Version {version}",
+  "Close": "Close",
+  "Open the GitHub repository": "Open the GitHub repository"
 }

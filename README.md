@@ -24,6 +24,9 @@ Part of the open-source **[Strix Advanced Tools](https://github.com/strix-tool)*
   Intel/AMD via GPU performance counters (utilisation only); on **Linux, AMD via sysfs**
   (`gpu_busy_percent` + `mem_info_vram_*`, no root). Falls back to N/A gracefully.
 - Position, size/zoom and pin state saved and restored between runs.
+- **About dialog** — the tray and widget menus show the running version and a
+  one-click GitHub logo that opens the project fork, in a larger fixed-size card
+  so the version and link stay readable.
 - **Hardened:** no network, no shell strings, no elevation. Settings are validated on load
   and written atomically. See [SECURITY.md](SECURITY.md).
 
@@ -36,7 +39,7 @@ See [`docs/screenshots/`](docs/screenshots/).
 ### Windows
 
 Download **`Strix Pulse Monitor Setup.exe`** from
-[Releases](https://github.com/strix-tool/strix-pulse-monitor/releases) and run the
+[Releases](https://github.com/quantumblow/strix-pulse-monitor/releases) and run the
 wizard. Or run from source:
 
 ```bat
@@ -50,7 +53,7 @@ python pulse_monitor.py
 ### Linux (Ubuntu / Debian)
 
 ```bash
-sudo apt install ./strix-pulse-monitor_1.0.3_all.deb     # from Releases
+sudo apt install ./strix-pulse-monitor_1.0.4_all.deb     # from Releases
 # or from source:
 sudo ./linux/install.sh            # add --user for a per-user install
 ./linux/install.sh --user --autostart   # start automatically with your session
@@ -69,6 +72,7 @@ Details: [docs/install-linux.md](docs/install-linux.md).
 | Pin / lock | Click the pin button (stops moving; corners still resize) |
 | Hide to tray | Click ✕ |
 | Show/hide | Click the tray icon |
+| About / GitHub | Right-click the widget or tray icon → About |
 | Exit | Right-click tray → Exit |
 
 ## Start automatically

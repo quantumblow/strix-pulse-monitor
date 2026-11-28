@@ -11,6 +11,8 @@ issue. We aim to acknowledge within 72 hours.
 Strix Pulse Monitor is a **local, read-only** desktop widget. It:
 
 - makes **no network connections** — it only *measures* traffic via `psutil` counters;
+  the About dialog's GitHub mark only asks the default browser to open a fixed HTTPS
+  URL, and never fetches anything itself;
 - requires **no elevation / admin**;
 - spawns **no shell** — the two subprocesses (`nvidia-smi`, and on Windows a
   `Get-Counter` query) use fixed argument lists with no user input;
@@ -34,4 +36,5 @@ Strix Pulse Monitor is a **local, read-only** desktop widget. It:
 
 The only file written is `settings.json` (window position + pin state) under
 `%APPDATA%\PulseMonitor` (Windows) or `~/.config/PulseMonitor` (Linux). No personal data,
-no telemetry, nothing leaves your machine.
+no telemetry, and the app itself sends nothing; the only outbound action is the browser
+opening the fixed GitHub URL when you click the logo in About.

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Build a .deb for Strix Pulse Monitor.
-#   ./linux/build-deb.sh [VERSION]     (default 1.0.3)
+#   ./linux/build-deb.sh [VERSION]     (default 1.0.4)
 set -euo pipefail
-VERSION="${1:-1.0.3}"
+VERSION="${1:-1.0.4}"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 PKG="strix-pulse-monitor"
 STAGE="$(mktemp -d)"; ROOT="$STAGE/pkg"
@@ -32,7 +32,7 @@ Depends: python3, python3-psutil
 Recommends: python3-pyside6.qtwidgets, python3-pyside6.qtgui, python3-pyside6.qtcore
 Section: utils
 Priority: optional
-Homepage: https://github.com/strix-tool/strix-pulse-monitor
+Homepage: https://github.com/quantumblow/strix-pulse-monitor
 Description: Always-on-top system monitor widget
  A frameless, draggable desktop widget showing live CPU, GPU, RAM and disk
  usage plus real-time network download/upload. No network, no telemetry.

@@ -3,7 +3,7 @@
 ## Quick install (.deb)
 
 ```bash
-sudo apt install ./strix-pulse-monitor_1.0.3_all.deb   # from Releases
+sudo apt install ./strix-pulse-monitor_1.0.4_all.deb   # from Releases
 ```
 
 If PySide6 is not present, install it:
@@ -16,7 +16,7 @@ sudo apt install python3-pyside6.qtwidgets python3-pyside6.qtgui python3-pyside6
 ## From source
 
 ```bash
-git clone https://github.com/strix-tool/strix-pulse-monitor
+git clone https://github.com/quantumblow/strix-pulse-monitor
 cd strix-pulse-monitor
 sudo ./linux/install.sh                 # system-wide
 ./linux/install.sh --user               # per-user

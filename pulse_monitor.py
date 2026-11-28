@@ -25,6 +25,7 @@ Requires: Python 3.10+, PySide6, psutil   (pip install -r requirements.txt)
 Run:      double-click run_pulse.bat  (or: pythonw pulse_monitor.py)
 """
 
+import base64
 import json
 import math
 import os
@@ -36,11 +37,12 @@ import time
 
 import psutil
 from PySide6.QtCore import (QElapsedTimer, QLockFile, QPoint, QRectF, QSize,
-                            Qt, QTimer)
-from PySide6.QtGui import (QAction, QActionGroup, QColor, QCursor, QFont,
-                           QIcon, QPainter, QPainterPath, QPen, QPixmap)
-from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLayout,
-                               QMenu, QMessageBox, QPushButton,
+                            Qt, QTimer, QUrl)
+from PySide6.QtGui import (QAction, QActionGroup, QColor, QCursor,
+                           QDesktopServices, QFont, QFontMetricsF, QIcon,
+                           QPainter, QPainterPath, QPen, QPixmap)
+from PySide6.QtWidgets import (QApplication, QDialog, QHBoxLayout, QLabel,
+                               QLayout, QMenu, QMessageBox, QPushButton,
                                QSystemTrayIcon, QVBoxLayout, QWidget)
 
 from strix_i18n import (Translator, LANGS, LANG_CODES, LANG_NAME,
@@ -53,6 +55,9 @@ from strix_i18n import (Translator, LANGS, LANG_CODES, LANG_NAME,
 # _("{app} is already running.", app=APP_NAME), keeping placeholder names
 # identical across all languages.
 APP_NAME = "Pulse Monitor"          # product name — brand, never translated
+APP_VERSION = "1.0.4"
+GITHUB_URL = "https://github.com/quantumblow/strix-pulse-monitor"
+ABOUT_SCALE = 1.5                   # About card is laid out at 1× then enlarged
 _TR = Translator()
 
 
@@ -77,7 +82,8 @@ ACCENTS = {
 WARN_COLOR   = "#FF5252"  # bars turn red at/above this threshold
 WARN_AT      = 90.0
 WIDGET_WIDTH = 300        # card width at 1.0× (px)
-METER_TEXT_W = 106        # right-hand value column in the meter rows at 1.0×
+METER_LABEL_GAP = 8       # px at 1.0× between the label column and the track
+METER_TEXT_GAP = 8        # px at 1.0× between the track and the value text
 SHADOW_PAD   = 12         # margin reserved around the card for the soft shadow
 CORNER       = 14         # card corner radius at 1.0×
 REFRESH_MS   = 1000       # UI refresh interval
@@ -710,11 +716,19 @@ class MeterBar(QWidget):
         self.text = "--"
         self.label = label
         self.scale = DEFAULT_SCALE
+        self.leading = 0            # shared label column width, set by the card
+        self.value_column = 0       # shared value column width, set by the card
         self.setFixedHeight(METER_H)
 
     def set_scale(self, scale):
         self.scale = clamp_scale(scale)
         self.setFixedHeight(round(METER_H * self.scale))
+        self.update()
+
+    def set_columns(self, leading: int, value_column: int):
+        """Share the label/value columns so every row has the same track."""
+        self.leading = max(0, int(leading))
+        self.value_column = max(0, int(value_column))
         self.update()
 
     def set(self, percent: float | None, text: str):
@@ -728,25 +742,55 @@ class MeterBar(QWidget):
         f.setWeight(weight)
         return f
 
+    def label_width(self) -> float:
+        """Pixel width of this row's label at the current (capped) font size."""
+        return QFontMetricsF(self._font(8, QFont.DemiBold)).horizontalAdvance(
+            self.label)
+
+    def value_width(self) -> float:
+        """Pixel width of the current value text at the capped font size."""
+        return QFontMetricsF(self._font(8)).horizontalAdvance(self.text)
+
+    def _value_gap(self) -> int:
+        return max(2, round(METER_TEXT_GAP * capped_font_scale(self.scale)))
+
+    def _column_width(self) -> float:
+        # `value_column` is the widest value across all rows; the fallback only
+        # matters for the instant between a text change and the parent's sync.
+        return max(self.value_column, self.value_width())
+
+    def track_width(self) -> float:
+        """Track length: it hugs the label on the left and the value on the right.
+
+        The label and value columns are shared by every row and measured at the
+        capped font size, so the tracks are all the same length while still
+        stopping just before the right-aligned value column. The text columns
+        stop growing at 2× while the card keeps growing to 4×, which is what
+        prevents the large empty gutters the fixed `52 × scale` / `106 × scale`
+        columns used to leave around the bar.
+        """
+        return max(1.0, self.width() - self.leading
+                   - self._column_width() - self._value_gap())
+
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        w, h, s = self.width(), self.height(), self.scale
-        label_w = round(52 * s)
+        w, h = self.width(), self.height()
+        value_w = self._column_width()
+        bar_x = self.leading
+        bar_w = self.track_width()
+        bar_h = max(1, round(6 * self.scale))
+        radius = max(1.0, bar_h / 2.0)
+        bar_y = (h - bar_h) / 2
 
         p.setPen(QColor(TEXT_DIM))
         p.setFont(self._font(8, QFont.DemiBold))
-        p.drawText(QRectF(0, 0, label_w, h), Qt.AlignVCenter | Qt.AlignLeft,
+        p.drawText(QRectF(0, 0, bar_x, h), Qt.AlignVCenter | Qt.AlignLeft,
                    self.label)
 
-        text_w = round(METER_TEXT_W * s)
-        bar_x = round(56 * s)
-        bar_w = max(1, w - bar_x - text_w - round(2 * s))
-        bar_h = max(1, round(6 * s))
-        radius = max(1.0, bar_h / 2.0)
-        bar_y = (h - bar_h) / 2
         track = QPainterPath()
-        track.addRoundedRect(QRectF(bar_x, bar_y, bar_w, bar_h), radius, radius)
+        track.addRoundedRect(QRectF(bar_x, bar_y, bar_w, bar_h), radius,
+                             radius)
         p.fillPath(track, QColor(255, 255, 255, 22))
 
         if self.value >= 0:
@@ -760,7 +804,7 @@ class MeterBar(QWidget):
 
         p.setPen(QColor(TEXT_MAIN))
         p.setFont(self._font(8))
-        p.drawText(QRectF(w - text_w, 0, text_w, h),
+        p.drawText(QRectF(w - value_w, 0, value_w, h),
                    Qt.AlignVCenter | Qt.AlignRight, self.text)
         p.end()
 
@@ -798,6 +842,205 @@ class NetRow(QWidget):
         p.drawText(QRectF(half, 0, half, h), Qt.AlignVCenter | Qt.AlignRight,
                    "▲ " + human_speed(self.up))
         p.end()
+
+
+# 96 px GitHub mark (white cat on a dark disc), inlined as a PNG so the
+# app remains a single file plus its i18n JSON. Generated from the official
+# Octocat mark; base64 decoding ignores the line breaks.
+_GITHUB_MARK_PNG = """
+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
+"""
+
+
+def github_icon() -> QIcon:
+    """The GitHub mark for the About box (with a painted fallback)."""
+    pm = QPixmap()
+    try:
+        pm.loadFromData(base64.b64decode(_GITHUB_MARK_PNG), "PNG")
+    except Exception:
+        pm = QPixmap()
+    if pm.isNull():
+        # Keep the About box usable even on a Qt build without a PNG plugin.
+        pm = QPixmap(96, 96)
+        pm.fill(Qt.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor("#0C0E14"))
+        p.drawEllipse(4, 4, 88, 88)
+        p.setPen(QColor(TEXT_MAIN))
+        p.setFont(QFont("Segoe UI", 30, QFont.Bold))
+        p.drawText(pm.rect(), Qt.AlignCenter, "GH")
+        p.end()
+    return QIcon(pm)
+
+
+def _open_url(url: str) -> bool:
+    """Open a fixed external URL in the user's default browser."""
+    return QDesktopServices.openUrl(QUrl(url))
+
+
+class AboutDialog(QDialog):
+    """Modal About card: version and a clickable GitHub mark.
+
+    The dialog is deliberately fixed-size: a resizable About box would only add
+    empty space (the type is fixed), and the previous fixed width allowed the
+    window manager to stretch only the height. It is laid out at a larger,
+    readable size instead.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"{_('About')} {APP_NAME}")
+        self.setModal(True)
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+
+        k = ABOUT_SCALE
+
+        def px(value: float) -> int:
+            return max(1, int(value * k + 0.5))
+
+        self.setStyleSheet(
+            "QDialog{background:#12141C;}"
+            "QLabel{color:#E8EAF0;}"
+            f"QLabel#brand{{color:#E8EAF0;font-size:{px(28)}px;"
+            f"font-weight:700;letter-spacing:{px(7)}px;}}"
+            f"QLabel#appInfo{{color:#9CA3AF;font-size:{px(15)}px;}}"
+            f"QLabel#repo{{color:#6B7280;font-size:{px(13)}px;}}"
+            f"QLabel#copyright{{color:#4B5563;font-size:{px(11)}px;}}"
+            "QPushButton#githubButton{background:transparent;border:none;"
+            f"border-radius:{px(34)}px;}}"
+            "QPushButton#githubButton:hover{background:rgba(255,255,255,0.08);}"
+            "QPushButton#closeButton{background:rgba(255,255,255,0.06);"
+            "color:#E8EAF0;border:none;"
+            f"border-radius:{px(7)}px;"
+            f"padding:{px(8)}px {px(28)}px;font-size:{px(13)}px;}}"
+            "QPushButton#closeButton:hover{background:rgba(255,255,255,0.14);}")
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(px(30), px(30), px(30), px(26))
+        root.setSpacing(px(5))
+
+        brand = QLabel("PULSE")
+        brand.setObjectName("brand")
+        brand.setAlignment(Qt.AlignCenter)
+        info = QLabel(f"{APP_NAME}  ·  "
+                      f"{_('Version {version}', version=APP_VERSION)}")
+        info.setObjectName("appInfo")
+        info.setAlignment(Qt.AlignCenter)
+        # Exposed for tests and for anyone who wants to read the shown version.
+        self.version_label = info
+
+        root.addWidget(brand)
+        root.addWidget(info)
+        root.addSpacing(px(12))
+
+        self.github_btn = QPushButton()
+        self.github_btn.setObjectName("githubButton")
+        self.github_btn.setIcon(github_icon())
+        self.github_btn.setIconSize(QSize(px(60), px(60)))
+        self.github_btn.setFixedSize(px(68), px(68))
+        self.github_btn.setCursor(Qt.PointingHandCursor)
+        self.github_btn.setAccessibleName("GitHub")
+        self.github_btn.setAccessibleDescription(
+            _("Open the GitHub repository"))
+        self.github_btn.setToolTip(_("Open the GitHub repository"))
+        self.github_btn.clicked.connect(self.open_github)
+        root.addWidget(self.github_btn, alignment=Qt.AlignHCenter)
+
+        repo = QLabel(GITHUB_URL.removeprefix("https://"))
+        repo.setObjectName("repo")
+        repo.setAlignment(Qt.AlignCenter)
+        repo.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        root.addWidget(repo)
+        copyright_label = QLabel("© 2026 Strix Advanced Tools")
+        copyright_label.setObjectName("copyright")
+        copyright_label.setAlignment(Qt.AlignCenter)
+        root.addWidget(copyright_label)
+
+        close = QPushButton(_("Close"))
+        close.setObjectName("closeButton")
+        close.setCursor(Qt.PointingHandCursor)
+        close.setDefault(True)
+        close.clicked.connect(self.accept)
+        root.addSpacing(px(20))
+        root.addWidget(close, alignment=Qt.AlignHCenter)
+
+        # Lock both dimensions after the layout has measured itself: the old
+        # fixed width let the WM change only the height, which looked broken.
+        self.setFixedWidth(px(460))
+        self.adjustSize()
+        self.setFixedSize(px(460), self.height())
+
+    def open_github(self):
+        _open_url(GITHUB_URL)
 
 
 # ============================================================================
@@ -946,6 +1189,20 @@ class PulseWidget(QWidget):
         m = layout_metrics(scale)
         return QSize(m["width"], m["height"])
 
+    def _sync_meter_columns(self):
+        """Give every meter row the same label and value columns.
+
+        The value column is as wide as the widest current value, so the four
+        tracks always have exactly the same length; the values stay right-
+        aligned on the card edge. Both columns are measured at the capped font
+        size, which is what keeps the bars filling the card at 2×–4×.
+        """
+        leading = round(max(bar.label_width() for bar in self._bars)
+                        + METER_LABEL_GAP * capped_font_scale(self.scale))
+        value_column = math.ceil(max(bar.value_width() for bar in self._bars))
+        for bar in self._bars:
+            bar.set_columns(leading, value_column)
+
     def _apply_scale(self, value):
         """Scale in place, keeping the current top-left."""
         self._stop_zoom()
@@ -976,6 +1233,7 @@ class PulseWidget(QWidget):
             label.setFixedHeight(m["header"])
         for bar in self._bars:
             bar.set_scale(s)
+        self._sync_meter_columns()
         self._net_label.setFixedHeight(m["net_label"])
         self.net_row.set_scale(s)
 
@@ -1095,6 +1353,10 @@ class PulseWidget(QWidget):
                               f"{human_gb(used)}/{human_gb(total)}G")
         else:
             self.disk_bar.set(None, "  N/A")
+
+        # Keep the shared value column wide enough for the new texts; this also
+        # keeps all four tracks exactly the same length.
+        self._sync_meter_columns()
 
         now = time.monotonic()
         net = psutil.net_io_counters()
@@ -1401,6 +1663,7 @@ class PulseWidget(QWidget):
         self.act_top.setText(_("Always on top / bottom"))
         self.act_pin.setText(_("Toggle Pin"))
         self.act_auto.setText(_("Start on login"))
+        self.act_about.setText(_("About"))
         self.act_quit.setText(_("Exit"))
         self.tray_lang_menu.setTitle(_("Language"))
         for act, code in zip(self.tray_lang_menu.actions(), LANG_CODES):
@@ -1419,6 +1682,7 @@ class PulseWidget(QWidget):
         act_auto.setChecked(self.autostart)
         menu.addMenu(self._make_language_menu(menu))
         menu.addSeparator()
+        act_about = menu.addAction(_("About"))
         act_quit = menu.addAction(_("Exit"))
         chosen = menu.exec(self.mapToGlobal(pos))
         if chosen == act_pin:
@@ -1429,6 +1693,8 @@ class PulseWidget(QWidget):
             self.toggle_on_top()
         elif chosen == act_auto:
             self.toggle_autostart()
+        elif chosen == act_about:
+            self._show_about()
         elif chosen == act_quit:
             self._quit()
 
@@ -1450,6 +1716,8 @@ class PulseWidget(QWidget):
         self.act_auto.setCheckable(True)
         self.act_auto.setChecked(self.autostart)
         self.act_auto.triggered.connect(self.toggle_autostart)
+        self.act_about = QAction(_("About"), menu)
+        self.act_about.triggered.connect(self._show_about)
         self.act_quit = QAction(_("Exit"), menu)
         self.act_quit.triggered.connect(self._quit)
         self.tray_lang_menu = self._make_language_menu(menu)
@@ -1459,6 +1727,7 @@ class PulseWidget(QWidget):
         menu.addAction(self.act_auto)
         menu.addMenu(self.tray_lang_menu)
         menu.addSeparator()
+        menu.addAction(self.act_about)
         menu.addAction(self.act_quit)
 
         self.tray.setContextMenu(menu)
@@ -1481,6 +1750,9 @@ class PulseWidget(QWidget):
                         QPoint(36, 46), QPoint(42, 34), QPoint(54, 34)])
         p.end()
         return QIcon(pm)
+
+    def _show_about(self):
+        AboutDialog(self).exec()
 
     def _toggle_visible(self):
         self.setVisible(not self.isVisible())

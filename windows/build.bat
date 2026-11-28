@@ -3,10 +3,10 @@ REM Build Strix Pulse Monitor as a single .exe with PyInstaller.
 REM Requires: Python 3.10+ on PATH.
 setlocal
 cd /d "%~dp0"
-rem Version: first argument, else PULSE_VERSION from the environment, else 1.0.0.
+rem Version: first argument, else PULSE_VERSION from the environment, else 1.0.4.
 set "VER=%~1"
 if "%VER%"=="" set "VER=%PULSE_VERSION%"
-if "%VER%"=="" set "VER=1.0.0"
+if "%VER%"=="" set "VER=1.0.4"
 
 python -m pip install --upgrade pip || goto :err
 python -m pip install -r ..\requirements.txt pyinstaller || goto :err

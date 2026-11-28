@@ -3,6 +3,36 @@
 All notable changes to Strix Pulse Monitor are documented here. Format:
 [Keep a Changelog](https://keepachangelog.com/); versioning: [SemVer](https://semver.org/).
 
+## [1.0.4] - 2026-11-28
+
+### Added
+- **About dialog** — a new **About** entry in the tray menu and in the widget
+  context menu shows the running version (`1.0.4`) and a clickable GitHub mark
+  that opens the project fork
+  (<https://github.com/quantumblow/strix-pulse-monitor>) in the default browser.
+  The dialog is translated into all 13 UI languages.
+- **Bundled GitHub mark** — the logo is a small PNG inlined in
+  `pulse_monitor.py`, so the app still installs as one Python file plus the
+  translation JSON and needs no extra asset.
+- **Larger, fixed About window** — the About box is now locked in both
+  dimensions at 690 px wide (1.5× the previous 460 px), with type scaled to
+  match (42 px brand, 23 px version line, 20 px repository link) and a 90 px
+  GitHub mark. The old fixed width let the window manager resize only the
+  height; locking it and scaling the contents makes the version and link
+  readable without a broken resize affordance.
+
+### Changed
+- **Longer meter bars** — the CPU / GPU / RAM / DISK tracks no longer reserve
+  fixed `52 × scale` and `106 × scale` text columns. The label and value columns
+  are measured from the actual text at the capped font size; all four rows share
+  the widest value column, so the tracks keep one uniform length while starting
+  just after the labels and stopping before the right-aligned values. This
+  removes the empty gutters on both sides — most visible at 2×–4×, where the
+  text stops growing while the card keeps scaling.
+- Version defaults bumped to **1.0.4** in the `.deb` builder, the NSIS installer
+  fallback and `build.bat`; the About dialog reads the new `APP_VERSION`
+  constant.
+
 ## [1.0.3] - 2026-11-28
 
 ### Added
