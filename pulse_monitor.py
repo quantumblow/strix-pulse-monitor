@@ -6,10 +6,12 @@ Features:
   • Live CPU, GPU (utilisation + VRAM), RAM, Storage + network down/up traffic
   • Frameless glass design with painted soft shadow (no Qt effect glitches)
   • Drag anywhere to reposition, Pin (📌) to lock in place
+  • Uniform 0.5×–4× window scaling: corner drag or Ctrl+wheel (10 %/notch),
+    with text capped at 2× so a large card stays sharp
   • Switch between always-on-top and desktop-level layering from the menus
   • Right-click context menu on the widget itself
-  • Position & settings persist atomically; restored position is clamped
-    to visible screen area (safe after monitor changes)
+  • Position, scale & settings persist atomically; restored position is
+    clamped to the visible screen area (safe after monitor changes)
   • Single-instance guard — launching twice won't spawn duplicates
   • System tray icon with live stats tooltip (show / hide / exit)
 
@@ -24,6 +26,7 @@ Run:      double-click run_pulse.bat  (or: pythonw pulse_monitor.py)
 """
 
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -32,12 +35,13 @@ import threading
 import time
 
 import psutil
-from PySide6.QtCore import QLockFile, QPoint, QRectF, Qt, QTimer
-from PySide6.QtGui import (QAction, QActionGroup, QColor, QFont, QIcon,
-                           QPainter, QPainterPath, QPen, QPixmap)
-from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QMenu,
-                               QMessageBox, QPushButton, QSystemTrayIcon,
-                               QVBoxLayout, QWidget)
+from PySide6.QtCore import (QElapsedTimer, QLockFile, QPoint, QRectF, QSize,
+                            Qt, QTimer)
+from PySide6.QtGui import (QAction, QActionGroup, QColor, QCursor, QFont,
+                           QIcon, QPainter, QPainterPath, QPen, QPixmap)
+from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLayout,
+                               QMenu, QMessageBox, QPushButton,
+                               QSystemTrayIcon, QVBoxLayout, QWidget)
 
 from strix_i18n import (Translator, LANGS, LANG_CODES, LANG_NAME,
                         detect_os_lang)
@@ -72,11 +76,39 @@ ACCENTS = {
 }
 WARN_COLOR   = "#FF5252"  # bars turn red at/above this threshold
 WARN_AT      = 90.0
-WIDGET_WIDTH = 300        # card width in px
-METER_TEXT_W = 106        # right-hand value column in the meter rows (px)
+WIDGET_WIDTH = 300        # card width at 1.0× (px)
+METER_TEXT_W = 106        # right-hand value column in the meter rows at 1.0×
 SHADOW_PAD   = 12         # margin reserved around the card for the soft shadow
-CORNER       = 14         # card corner radius
+CORNER       = 14         # card corner radius at 1.0×
 REFRESH_MS   = 1000       # UI refresh interval
+
+# ---- window scaling --------------------------------------------------------
+# The whole card scales uniformly; text stops growing at FONT_SCALE_MAX so a
+# very large widget stays legible without turning into billboard-sized digits.
+SCALE_MIN       = 0.5
+SCALE_MAX       = 4.0
+SCALE_STEP      = 0.10    # one wheel notch = 10 % of the current scale
+FONT_SCALE_MAX  = 2.0
+DEFAULT_SCALE   = 1.0
+RESIZE_GRIP     = 14      # corner hit zone at 1.0× (px), clamped below
+RESIZE_GRIP_MIN = 10
+RESIZE_GRIP_MAX = 24
+SHADOW_MAX_STEPS = 24     # cap the shadow layers at large scales
+# Ctrl+wheel zoom animation duration (ms). Smoothstep spreads the step evenly
+# over it instead of front-loading most of the movement into the first frame.
+ZOOM_EASE_MS = 320
+BASE_WIDTH      = WIDGET_WIDTH + SHADOW_PAD * 2
+
+# Base layout heights (px at 1.0×). Kept here so the window size, the layout
+# metrics and the row widgets all derive from the same numbers.
+HEADER_H     = 22
+METER_H      = 30
+NET_LABEL_H  = 21
+NET_ROW_H    = 26
+ROW_SPACING  = 6
+CONTENT_PAD_X = 16        # inner padding between the card edge and the content
+CONTENT_PAD_TOP = 12
+CONTENT_PAD_BOTTOM = 14
 
 if os.name == "nt":
     CONFIG_DIR = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")),
@@ -325,6 +357,11 @@ def load_settings() -> dict:
             out["autostart"] = raw["autostart"]
         if isinstance(raw.get("on_top"), bool):
             out["on_top"] = raw["on_top"]
+        # Scale is clamped instead of rejected: an old/tampered value can only
+        # ever produce a usable window, never a 0× or 999× one.
+        scale = raw.get("scale")
+        if isinstance(scale, (int, float)) and not isinstance(scale, bool):
+            out["scale"] = clamp_scale(scale)
         if isinstance(raw.get("lang"), str) and raw["lang"] in LANG_CODES:
             out["lang"] = raw["lang"]
         return out
@@ -348,6 +385,130 @@ def save_settings(data: dict):
         os.replace(tmp, CONFIG_FILE)
     except Exception:
         pass
+
+
+# ============================================================================
+# Scaling helpers
+# ============================================================================
+def clamp_scale(value) -> float:
+    """Any user/settings value → a usable scale in [SCALE_MIN, SCALE_MAX]."""
+    try:
+        s = float(value)
+    except (TypeError, ValueError):
+        return DEFAULT_SCALE
+    if not math.isfinite(s):
+        return DEFAULT_SCALE
+    return round(max(SCALE_MIN, min(s, SCALE_MAX)), 3)
+
+
+def zoomed_scale(current, notches: float) -> float:
+    """One wheel notch (120 units) = SCALE_STEP; fractional deltas allowed."""
+    return clamp_scale(clamp_scale(current) + notches * SCALE_STEP)
+
+
+def capped_font_scale(scale) -> float:
+    """Text follows the window down, but never past FONT_SCALE_MAX up."""
+    return min(clamp_scale(scale), FONT_SCALE_MAX)
+
+
+def scaled_point_size(base_pt: float, scale) -> float:
+    # Qt can render fractional point sizes; 1 pt is the practical floor.
+    return max(1.0, base_pt * capped_font_scale(scale))
+
+
+def resize_grip(scale) -> int:
+    """How far the corner hit zone reaches past the shadow margin (10–24 px)."""
+    return max(RESIZE_GRIP_MIN,
+               min(RESIZE_GRIP_MAX, round(RESIZE_GRIP * clamp_scale(scale))))
+
+
+CORNER_CURSORS = {
+    "top-left": Qt.SizeFDiagCursor,
+    "bottom-right": Qt.SizeFDiagCursor,
+    "top-right": Qt.SizeBDiagCursor,
+    "bottom-left": Qt.SizeBDiagCursor,
+}
+
+
+def resize_corner(pos: QPoint, width: int, height: int, scale) -> str | None:
+    """Which corner (if any) is under `pos` inside the window rect.
+
+    The window rect includes the shadow margin, so the visible card corner sits
+    `SHADOW_PAD` px in from it. The grab area therefore starts at the window
+    edge (so the shadow margin also works) and extends one grip length past the
+    card corner, which puts the rounded corner itself inside the hit zone.
+    """
+    s = clamp_scale(scale)
+    edge = round(SHADOW_PAD * s) + resize_grip(s)
+    if pos.x() < edge:
+        horizontal = "left"
+    elif pos.x() >= width - edge:
+        horizontal = "right"
+    else:
+        return None
+    if pos.y() < edge:
+        vertical = "top"
+    elif pos.y() >= height - edge:
+        vertical = "bottom"
+    else:
+        return None
+    return f"{vertical}-{horizontal}"
+
+
+def corner_drag_scale(corner: str, dx: int, dy: int, base_width: int,
+                      base_height: int, start_scale: float) -> float:
+    """Uniform scale from a corner drag.
+
+    The mouse delta is projected onto the window diagonal, so dragging along
+    the diagonal tracks the pointer exactly while an off-axis drag still feels
+    proportional instead of snapping to the dominant axis.
+    """
+    sign_x = -1 if "left" in corner else 1
+    sign_y = -1 if "top" in corner else 1
+    denom = base_width * base_width + base_height * base_height
+    if denom <= 0:
+        return clamp_scale(start_scale)
+    delta = (sign_x * dx * base_width + sign_y * dy * base_height) / denom
+    return clamp_scale(start_scale + delta)
+
+
+def corner_resize_pos(corner: str, anchor: QPoint, width: int, height: int) -> QPoint:
+    """Top-left for a resized window, keeping the opposite corner anchored."""
+    x = anchor.x() - width if "left" in corner else anchor.x()
+    y = anchor.y() - height if "top" in corner else anchor.y()
+    return QPoint(x, y)
+
+
+def layout_metrics(scale) -> dict:
+    """Every pixel metric of the card at `scale`, derived from the base sizes.
+
+    Returning the window height together with the row heights guarantees the
+    fixed-size window and its layout agree exactly at every scale.
+    """
+    s = clamp_scale(scale)
+    margin_x = round((SHADOW_PAD + CONTENT_PAD_X) * s)
+    margin_top = round((SHADOW_PAD + CONTENT_PAD_TOP) * s)
+    margin_bottom = round((SHADOW_PAD + CONTENT_PAD_BOTTOM) * s)
+    spacing = round(ROW_SPACING * s)
+    header = round(HEADER_H * s)
+    meter = round(METER_H * s)
+    net_label = round(NET_LABEL_H * s)
+    net_row = round(NET_ROW_H * s)
+    height = (margin_top + margin_bottom + header + 6 * spacing
+              + 4 * meter + net_label + net_row)
+    return {
+        "margin_left": margin_x,
+        "margin_right": margin_x,
+        "margin_top": margin_top,
+        "margin_bottom": margin_bottom,
+        "spacing": spacing,
+        "header": header,
+        "meter": meter,
+        "net_label": net_label,
+        "net_row": net_row,
+        "width": round(BASE_WIDTH * s),
+        "height": height,
+    }
 
 
 def _x11_set_stacking(win_id: int, on_top: bool) -> bool:
@@ -536,7 +697,11 @@ def ensure_autostart(enable: bool):
 # UI building blocks
 # ============================================================================
 class MeterBar(QWidget):
-    """A labelled horizontal usage bar: NAME | thin track+fill | value text."""
+    """A labelled horizontal usage bar: NAME | thin track+fill | value text.
+
+    Dimensions scale with the window; the fonts follow the capped scale so the
+    bar geometry keeps growing past 2× while the text stays put.
+    """
 
     def __init__(self, label: str, accent: str, parent=None):
         super().__init__(parent)
@@ -544,26 +709,44 @@ class MeterBar(QWidget):
         self.value: float = -1.0    # -1 → N/A
         self.text = "--"
         self.label = label
-        self.setFixedHeight(30)
+        self.scale = DEFAULT_SCALE
+        self.setFixedHeight(METER_H)
+
+    def set_scale(self, scale):
+        self.scale = clamp_scale(scale)
+        self.setFixedHeight(round(METER_H * self.scale))
+        self.update()
 
     def set(self, percent: float | None, text: str):
         self.value = -1.0 if percent is None else max(0.0, min(percent, 100.0))
         self.text = text
         self.update()
 
+    def _font(self, base_pt: float, weight=QFont.Normal) -> QFont:
+        f = QFont("Segoe UI")
+        f.setPointSizeF(scaled_point_size(base_pt, self.scale))
+        f.setWeight(weight)
+        return f
+
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        w, h = self.width(), self.height()
+        w, h, s = self.width(), self.height(), self.scale
+        label_w = round(52 * s)
 
         p.setPen(QColor(TEXT_DIM))
-        p.setFont(QFont("Segoe UI", 8, QFont.DemiBold))
-        p.drawText(QRectF(0, 0, 52, h), Qt.AlignVCenter | Qt.AlignLeft, self.label)
+        p.setFont(self._font(8, QFont.DemiBold))
+        p.drawText(QRectF(0, 0, label_w, h), Qt.AlignVCenter | Qt.AlignLeft,
+                   self.label)
 
-        bar_x, bar_w, bar_h = 56, w - 56 - METER_TEXT_W - 2, 6
+        text_w = round(METER_TEXT_W * s)
+        bar_x = round(56 * s)
+        bar_w = max(1, w - bar_x - text_w - round(2 * s))
+        bar_h = max(1, round(6 * s))
+        radius = max(1.0, bar_h / 2.0)
         bar_y = (h - bar_h) / 2
         track = QPainterPath()
-        track.addRoundedRect(QRectF(bar_x, bar_y, bar_w, bar_h), 3, 3)
+        track.addRoundedRect(QRectF(bar_x, bar_y, bar_w, bar_h), radius, radius)
         p.fillPath(track, QColor(255, 255, 255, 22))
 
         if self.value >= 0:
@@ -571,12 +754,13 @@ class MeterBar(QWidget):
             fill_w = bar_w * self.value / 100.0
             if fill_w > 1:
                 fill = QPainterPath()
-                fill.addRoundedRect(QRectF(bar_x, bar_y, fill_w, bar_h), 3, 3)
+                fill.addRoundedRect(QRectF(bar_x, bar_y, fill_w, bar_h),
+                                    radius, radius)
                 p.fillPath(fill, color)
 
         p.setPen(QColor(TEXT_MAIN))
-        p.setFont(QFont("Consolas", 8))
-        p.drawText(QRectF(w - METER_TEXT_W, 0, METER_TEXT_W, h),
+        p.setFont(self._font(8))
+        p.drawText(QRectF(w - text_w, 0, text_w, h),
                    Qt.AlignVCenter | Qt.AlignRight, self.text)
         p.end()
 
@@ -588,7 +772,13 @@ class NetRow(QWidget):
         super().__init__(parent)
         self.down = 0.0
         self.up = 0.0
-        self.setFixedHeight(26)
+        self.scale = DEFAULT_SCALE
+        self.setFixedHeight(NET_ROW_H)
+
+    def set_scale(self, scale):
+        self.scale = clamp_scale(scale)
+        self.setFixedHeight(round(NET_ROW_H * self.scale))
+        self.update()
 
     def set(self, down_bps: float, up_bps: float):
         self.down, self.up = down_bps, up_bps
@@ -598,7 +788,9 @@ class NetRow(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         h, half = self.height(), self.width() / 2
-        p.setFont(QFont("Consolas", 9))
+        f = QFont("Consolas")
+        f.setPointSizeF(scaled_point_size(9, self.scale))
+        p.setFont(f)
         p.setPen(QColor(ACCENTS["DOWN"]))
         p.drawText(QRectF(0, 0, half, h), Qt.AlignVCenter | Qt.AlignLeft,
                    "▼ " + human_speed(self.down))
@@ -628,8 +820,20 @@ class PulseWidget(QWidget):
             # regenerated from the running interpreter when out of date.
             self.autostart = os.path.exists(_linux_autostart_path())
         ensure_autostart(self.autostart)   # keep the login entry in sync
+        self.scale = clamp_scale(self.settings.get("scale", DEFAULT_SCALE))
+        self._base_size = QSize(BASE_WIDTH, layout_metrics(1.0)["height"])
         self._drag_offset: QPoint | None = None
+        self._resize: dict | None = None
         self._quitting = False
+        # Ctrl+wheel does not jump straight to the new scale: a short
+        # time-based ease-out makes one notch feel like a continuous zoom
+        # instead of a one-step window jump.
+        self._zoom_target = self.scale
+        self._zoom_start_scale = self.scale
+        self._zoom_clock = QElapsedTimer()
+        self._zoom_timer = QTimer(self)
+        self._zoom_timer.setInterval(16)
+        self._zoom_timer.timeout.connect(self._zoom_tick)
 
         self.setWindowTitle(APP_NAME)
         # Desktop widget: sit at the BOTTOM of the z-order by default, so
@@ -639,7 +843,7 @@ class PulseWidget(QWidget):
                   else Qt.WindowStaysOnBottomHint)
         self.setWindowFlags(flags)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFixedWidth(WIDGET_WIDTH + SHADOW_PAD * 2)
+        self.setMouseTracking(True)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
 
@@ -649,9 +853,17 @@ class PulseWidget(QWidget):
         psutil.cpu_percent(interval=None)  # prime the counter
 
         self._build_ui()
+        self._apply_scale(self.scale)
+        large = layout_metrics(SCALE_MAX)
+        self.setMaximumSize(large["width"], large["height"])
         self._build_tray()
         self._restore_position()
         self._apply_cursor()
+
+        # Hover moves must reach PulseWidget even over child rows, otherwise
+        # the corner resize cursor would only appear on the bare card edges.
+        for child in self.findChildren(QWidget):
+            child.setMouseTracking(True)
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.refresh)
@@ -661,15 +873,25 @@ class PulseWidget(QWidget):
     # ---------------- UI ----------------
     def _build_ui(self):
         root = QVBoxLayout(self)
+        # We own the window geometry (it is frameless and scaled by hand). A
+        # constrained layout would resize the top-level to the new minimum
+        # height before our setGeometry runs, producing an extra native
+        # configure per frame and visible jitter while zooming.
+        root.setSizeConstraint(QLayout.SetNoConstraint)
+        self.root_layout = root
         pad = SHADOW_PAD
-        root.setContentsMargins(pad + 16, pad + 12, pad + 16, pad + 14)
-        root.setSpacing(6)
+        root.setContentsMargins(pad + CONTENT_PAD_X, pad + CONTENT_PAD_TOP,
+                                pad + CONTENT_PAD_X, pad + CONTENT_PAD_BOTTOM)
+        root.setSpacing(ROW_SPACING)
 
         header = QHBoxLayout()
         title = QLabel("PULSE")
+        self._title = title
+        self._title_spec = ("Segoe UI", 10, QFont.Bold)
         title.setStyleSheet(f"color:{TEXT_MAIN}; letter-spacing:4px;")
         title.setFont(QFont("Segoe UI", 10, QFont.Bold))
         self.sub = QLabel(_("system monitor"))
+        self._sub_spec = ("Segoe UI", 7, QFont.Normal)
         self.sub.setStyleSheet(f"color:{TEXT_DIM};")
         self.sub.setFont(QFont("Segoe UI", 7))
 
@@ -678,8 +900,9 @@ class PulseWidget(QWidget):
         self.close_btn = QPushButton("✕")
         self.close_btn.setToolTip(_("Hide to tray"))
         self.close_btn.clicked.connect(self.hide)
-        for b in (self.pin_btn, self.close_btn):
-            b.setFixedSize(22, 22)
+        self._buttons = (self.pin_btn, self.close_btn)
+        for b in self._buttons:
+            b.setFixedSize(HEADER_H, HEADER_H)
             b.setCursor(Qt.PointingHandCursor)
             b.setFocusPolicy(Qt.NoFocus)
             b.setStyleSheet(
@@ -700,11 +923,15 @@ class PulseWidget(QWidget):
         self.gpu_bar  = MeterBar("GPU",  ACCENTS["GPU"])
         self.ram_bar  = MeterBar("RAM",  ACCENTS["RAM"])
         self.disk_bar = MeterBar("DISK", ACCENTS["DISK"])
-        for bar in (self.cpu_bar, self.gpu_bar, self.ram_bar, self.disk_bar):
+        self._bars = (self.cpu_bar, self.gpu_bar, self.ram_bar, self.disk_bar)
+        for bar in self._bars:
             root.addWidget(bar)
 
         net_label = QLabel("NETWORK")
+        self._net_label = net_label
+        self._net_spec = ("Segoe UI", 7, QFont.DemiBold)
         net_label.setFont(QFont("Segoe UI", 7, QFont.DemiBold))
+        net_label.setFixedHeight(NET_LABEL_H)
         net_label.setStyleSheet(
             f"color:{TEXT_DIM}; letter-spacing:2px; margin-top:4px;")
         root.addWidget(net_label)
@@ -712,6 +939,86 @@ class PulseWidget(QWidget):
         root.addWidget(self.net_row)
 
         self._update_pin_icon()
+
+    # ---------------- scaling ----------------
+    def _size_for_scale(self, scale) -> QSize:
+        """Window size for a scale; width and height grow proportionally."""
+        m = layout_metrics(scale)
+        return QSize(m["width"], m["height"])
+
+    def _apply_scale(self, value):
+        """Scale in place, keeping the current top-left."""
+        self._stop_zoom()
+        self._apply_scale_to(value, self.x(), self.y())
+        self._zoom_target = self.scale
+
+    def _apply_scale_to(self, value, x, y):
+        """Resize the card and every row/font, moving it in the same step.
+
+        Called on launch, on Ctrl+wheel and continuously while a corner is
+        dragged. `setGeometry` sends one configure request (size + position)
+        instead of the fixed-size-plus-move pair, which made dragging stutter
+        and let the window manager race the requested position. It never
+        persists by itself — the caller decides when the new scale is final.
+        """
+        s = clamp_scale(value)
+        self.scale = s
+        m = layout_metrics(s)
+        self.root_layout.setContentsMargins(
+            m["margin_left"], m["margin_top"],
+            m["margin_right"], m["margin_bottom"])
+        self.root_layout.setSpacing(m["spacing"])
+
+        # The header is exactly as tall as its buttons; the labels are pinned
+        # to that height too, so the layout height matches `m["height"]` even
+        # after the font cap stops the text from growing.
+        for label in (self._title, self.sub):
+            label.setFixedHeight(m["header"])
+        for bar in self._bars:
+            bar.set_scale(s)
+        self._net_label.setFixedHeight(m["net_label"])
+        self.net_row.set_scale(s)
+
+        for b in self._buttons:
+            b.setFixedSize(m["header"], m["header"])
+            radius = max(1, round(m["header"] / 2))
+            fs = capped_font_scale(s)
+            b.setStyleSheet(
+                "QPushButton{background:rgba(255,255,255,0.06); color:#9CA3AF;"
+                f" border:none; border-radius:{radius}px;"
+                f" font-size:{max(1, round(10 * fs))}px;}}"
+                "QPushButton:hover{background:rgba(255,255,255,0.16);"
+                " color:#fff;}")
+
+        self._apply_fonts(s)
+        self.setGeometry(int(x), int(y), m["width"], m["height"])
+        self.update()
+
+    def _apply_fonts(self, scale):
+        s = clamp_scale(scale)
+        fs = capped_font_scale(s)
+        title_family, title_pt, title_weight = self._title_spec
+        title_font = QFont(title_family)
+        title_font.setPointSizeF(scaled_point_size(title_pt, fs))
+        title_font.setWeight(title_weight)
+        self._title.setFont(title_font)
+        self._title.setStyleSheet(
+            f"color:{TEXT_MAIN}; letter-spacing:{max(0, round(4 * fs))}px;")
+
+        sub_family, sub_pt, sub_weight = self._sub_spec
+        sub_font = QFont(sub_family)
+        sub_font.setPointSizeF(scaled_point_size(sub_pt, fs))
+        sub_font.setWeight(sub_weight)
+        self.sub.setFont(sub_font)
+
+        net_family, net_pt, net_weight = self._net_spec
+        net_font = QFont(net_family)
+        net_font.setPointSizeF(scaled_point_size(net_pt, fs))
+        net_font.setWeight(net_weight)
+        self._net_label.setFont(net_font)
+        self._net_label.setStyleSheet(
+            f"color:{TEXT_DIM}; letter-spacing:{max(0, round(2 * fs))}px;"
+            f" margin-top:{round(4 * s)}px;")
 
     def paintEvent(self, _):
         """Card + hand-painted soft shadow.
@@ -722,18 +1029,29 @@ class PulseWidget(QWidget):
         """
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        card = QRectF(self.rect()).adjusted(SHADOW_PAD, SHADOW_PAD,
-                                            -SHADOW_PAD, -SHADOW_PAD)
-        # soft shadow: expanding translucent outlines
+        s = self.scale
+        pad = round(SHADOW_PAD * s)
+        corner = CORNER * s
+        shadow_pen = max(1, round(2 * s))
+        shadow_dy = round(2 * s)
+        card = QRectF(self.rect()).adjusted(pad, pad, -pad, -pad)
+        # soft shadow: expanding translucent outlines. The layer count is
+        # capped so a 4x card does not paint 48 full-size rounded rects every
+        # frame; the outermost layers are a couple of pixels apart and the
+        # gradient is visually unchanged.
         p.setBrush(Qt.NoBrush)
-        for i in range(SHADOW_PAD, 0, -1):
-            alpha = int(38 * (1 - i / (SHADOW_PAD + 1)) ** 2)
-            p.setPen(QPen(QColor(0, 0, 0, alpha), 2))
-            p.drawRoundedRect(card.adjusted(-i, -i + 2, i, i + 2),
-                              CORNER + i * 0.6, CORNER + i * 0.6)
+        steps = min(pad, SHADOW_MAX_STEPS)
+        for step in range(steps, 0, -1):
+            offset = step * pad / steps
+            alpha = int(38 * (1 - offset / (pad + 1)) ** 2)
+            p.setPen(QPen(QColor(0, 0, 0, alpha), shadow_pen))
+            p.drawRoundedRect(
+                card.adjusted(-offset, -offset + shadow_dy,
+                              offset, offset + shadow_dy),
+                corner + offset * 0.6, corner + offset * 0.6)
         # glass card
         path = QPainterPath()
-        path.addRoundedRect(card, CORNER, CORNER)
+        path.addRoundedRect(card, corner, corner)
         p.fillPath(path, BG)
         p.setPen(QPen(BG_EDGE, 1))
         p.drawPath(path)
@@ -797,22 +1115,179 @@ class PulseWidget(QWidget):
             f"{gpu_tip}\n"
             f"▼ {human_speed(down).strip()}   ▲ {human_speed(up).strip()}")
 
-    # ---------------- drag & pin ----------------
+    # ---------------- drag, resize & zoom ----------------
     def mousePressEvent(self, e):
-        if e.button() == Qt.LeftButton and not self.pinned:
-            self._drag_offset = (e.globalPosition().toPoint()
-                                 - self.frameGeometry().topLeft())
+        if e.button() != Qt.LeftButton:
+            super().mousePressEvent(e)
+            return
+        self._stop_zoom()
+        gp = e.globalPosition().toPoint()
+        corner = resize_corner(self.mapFromGlobal(gp), self.width(),
+                               self.height(), self.scale)
+        if corner:
+            # Pin locks moving, never resizing: corners work either way.
+            self._begin_resize(corner, gp)
+            e.accept()
+            return
+        if not self.pinned:
+            self._drag_offset = gp - self.frameGeometry().topLeft()
             e.accept()
 
     def mouseMoveEvent(self, e):
-        if self._drag_offset is not None and not self.pinned:
-            self.move(e.globalPosition().toPoint() - self._drag_offset)
+        gp = e.globalPosition().toPoint()
+        if self._resize is not None:
+            self._resize_to(gp)
             e.accept()
+            return
+        if self._drag_offset is not None and not self.pinned:
+            self.move(gp - self._drag_offset)
+            e.accept()
+            return
+        self._update_hover_cursor(gp)
 
-    def mouseReleaseEvent(self, _):
+    def mouseReleaseEvent(self, e):
+        if self._resize is not None:
+            self._resize = None
+            self._persist()
+            self._update_hover_cursor(e.globalPosition().toPoint())
+            e.accept()
+            return
         if self._drag_offset is not None:
             self._drag_offset = None
             self._persist()
+
+    def wheelEvent(self, e):
+        """Ctrl + wheel: SCALE_STEP per notch, eased in place."""
+        if self._resize is not None or self._drag_offset is not None:
+            # A held drag owns the window geometry; never start a second mover.
+            e.accept()
+            return
+        if e.modifiers() & Qt.ControlModifier:
+            delta = e.angleDelta().y() or e.pixelDelta().y()
+            if delta:
+                target = zoomed_scale(self._zoom_target, delta / 120.0)
+                self._zoom_to(target)
+                e.accept()
+                return
+        super().wheelEvent(e)
+
+    def _zoom_to(self, target):
+        """Set a new zoom target; the timer eases the card towards it in place."""
+        target = clamp_scale(target)
+        if target == self._zoom_target and self._zoom_timer.isActive():
+            return
+        self._zoom_target = target
+        if target == self.scale:
+            self._stop_zoom()
+            return
+        if ZOOM_EASE_MS <= 0:
+            # Zero duration (used by tests): apply the notch immediately in a
+            # single geometry update.
+            self._zoom_frame(target)
+            self._zoom_target = self.scale
+            self._persist()
+            self._update_hover_cursor(QCursor.pos())
+            return
+        self._zoom_start_scale = self.scale
+        self._zoom_clock.restart()
+        if not self._zoom_timer.isActive():
+            self._zoom_timer.start()
+
+    def _zoom_frame(self, new_scale):
+        """Apply one zoom frame without moving the card's top-left."""
+        self._apply_scale_to(new_scale, self.x(), self.y())
+
+    def _zoom_tick(self):
+        """One smoothstep frame over ZOOM_EASE_MS milliseconds.
+
+        Smoothstep is deliberate: a plain exponential ease-out puts most of a
+        10 % step into the first frame, which still reads as a jump. This curve
+        starts and ends slowly and spends its frames resizing the window.
+        """
+        elapsed = self._zoom_clock.elapsed()
+        if ZOOM_EASE_MS <= 0 or elapsed >= ZOOM_EASE_MS:
+            new_scale = self._zoom_target
+            done = True
+        else:
+            t = max(0.0, min(elapsed / ZOOM_EASE_MS, 1.0))
+            eased = t * t * (3.0 - 2.0 * t)     # smoothstep
+            new_scale = (self._zoom_start_scale
+                         + (self._zoom_target - self._zoom_start_scale) * eased)
+            done = False
+
+        self._zoom_frame(new_scale)
+
+        if done:
+            self._zoom_timer.stop()
+            self._zoom_target = self.scale
+            self._persist()
+            self._update_hover_cursor(QCursor.pos())
+
+    def _stop_zoom(self):
+        """Abandon/finish an animation instantly (e.g. when a drag starts)."""
+        self._zoom_timer.stop()
+        self._zoom_target = self.scale
+
+    def _begin_resize(self, corner: str, global_pos: QPoint):
+        fg = self.frameGeometry()
+        anchor = QPoint(
+            fg.x() + fg.width() if "left" in corner else fg.x(),
+            fg.y() + fg.height() if "top" in corner else fg.y())
+        self._resize = {
+            "corner": corner,
+            "anchor": anchor,
+            "press": QPoint(global_pos),
+            "start_scale": self.scale,
+        }
+        self.setCursor(CORNER_CURSORS[corner])
+
+    def _resize_to(self, global_pos: QPoint):
+        r = self._resize
+        if r is None:
+            return
+        dx = global_pos.x() - r["press"].x()
+        dy = global_pos.y() - r["press"].y()
+        scale = corner_drag_scale(
+            r["corner"], dx, dy, self._base_size.width(),
+            self._base_size.height(), r["start_scale"])
+        if scale == self.scale:
+            return
+        target = layout_metrics(scale)
+        pos = corner_resize_pos(r["corner"], r["anchor"],
+                                target["width"], target["height"])
+        self._apply_scale_to(scale, pos.x(), pos.y())
+
+    def _update_hover_cursor(self, global_pos: QPoint):
+        local = self.mapFromGlobal(global_pos)
+        corner = resize_corner(local, self.width(), self.height(), self.scale)
+        if corner:
+            shape = CORNER_CURSORS[corner]
+        elif self.pinned:
+            shape = Qt.ArrowCursor
+        else:
+            shape = Qt.SizeAllCursor
+        # setCursor on every mouse move means an X cursor round-trip per event.
+        if self.cursor().shape() != shape:
+            self.setCursor(shape)
+
+    def _clamp_pos(self, x, y, width, height):
+        """Clamp a target rect into the screen it is centred on."""
+        app = QApplication.instance()
+        center = QPoint(x + width // 2, y + height // 2)
+        screen = app.screenAt(center) if app is not None else None
+        screen = screen or QApplication.primaryScreen()
+        if screen is None:
+            return x, y
+        avail = screen.availableGeometry()
+        if width >= avail.width():
+            x = avail.left()
+        else:
+            x = max(avail.left(), min(x, avail.right() - width + 1))
+        if height >= avail.height():
+            y = avail.top()
+        else:
+            y = max(avail.top(), min(y, avail.bottom() - height + 1))
+        return x, y
 
     def toggle_pin(self):
         self.pinned = not self.pinned
@@ -857,7 +1332,7 @@ class PulseWidget(QWidget):
         self._persist()
 
     def _apply_cursor(self):
-        self.setCursor(Qt.ArrowCursor if self.pinned else Qt.SizeAllCursor)
+        self._update_hover_cursor(QCursor.pos())
 
     def _update_pin_icon(self):
         self.pin_btn.setText("📌" if self.pinned else "📍")
@@ -866,6 +1341,7 @@ class PulseWidget(QWidget):
 
     def _persist(self):
         self.settings.update({"x": self.x(), "y": self.y(),
+                              "scale": self.scale,
                               "pinned": self.pinned,
                               "on_top": self.on_top,
                               "autostart": self.autostart})
@@ -882,7 +1358,10 @@ class PulseWidget(QWidget):
         virt = QApplication.primaryScreen().availableVirtualGeometry()
         x = max(virt.left(), min(x, virt.right() - 60))
         y = max(virt.top(), min(y, virt.bottom() - 60))
-        self.move(x, y)
+        # A saved position from a larger-and-further-right window must not put
+        # the restored (possibly bigger) card off-screen on this launch.
+        x, y = self._clamp_pos(x, y, self.width(), self.height())
+        self.setGeometry(x, y, self.width(), self.height())
 
     # ---------------- language ----------------
     def _make_language_menu(self, parent) -> QMenu:
@@ -1008,6 +1487,7 @@ class PulseWidget(QWidget):
 
     def _quit(self):
         self._quitting = True
+        self._stop_zoom()
         self._persist()
         self.tray.hide()
         QApplication.quit()

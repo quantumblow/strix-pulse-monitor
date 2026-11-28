@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Build a .deb for Strix Pulse Monitor.
-#   ./linux/build-deb.sh [VERSION]     (default 1.0.0)
+#   ./linux/build-deb.sh [VERSION]     (default 1.0.3)
 set -euo pipefail
-VERSION="${1:-1.0.0}"
+VERSION="${1:-1.0.3}"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 PKG="strix-pulse-monitor"
 STAGE="$(mktemp -d)"; ROOT="$STAGE/pkg"

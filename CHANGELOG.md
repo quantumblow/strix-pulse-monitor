@@ -3,7 +3,42 @@
 All notable changes to Strix Pulse Monitor are documented here. Format:
 [Keep a Changelog](https://keepachangelog.com/); versioning: [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.0.3] - 2026-11-28
+
+### Added
+- **Window scaling (0.5×–4×)** — Ctrl + mouse wheel zooms in 10 % steps in place; the scale is saved as `scale` in `settings.json` (default 1.0)
+  and restored on launch. Zoomed windows are nudged back inside the screen so
+  the card can never grow out of reach.
+- **Four-corner resizing** — drag any corner for a uniform resize that keeps the
+  opposite corner anchored. The grab zone reaches from the window edge to
+  `SHADOW_PAD + clamp(14 × scale, 10, 24)` px inward, so the rounded corner is
+  grabbable, and Pin only locks *moving*: a pinned widget can still be resized.
+- **Font scale cap** — text tracks the window when shrinking below 1× but stops
+  growing at **2×**, while the card and its rows keep scaling up to 4×.
+- **Scaling tests** — `tests/` covers scale math, settings validation,
+  Ctrl+wheel, corner anchoring, the pin exception and persistence;
+  `tests/README.md` documents the manual X11 pass (0.5/1/2/4 screenshots,
+  four-corner cursors, geometry and restart).
+
+### Changed
+- **Smoother zoom and corner drags** — each scale change now applies size and
+  position with a single `setGeometry` request instead of re-applying fixed-size
+  constraints every frame, and the shadow layer count is capped at large
+  scales. The root layout no longer constrains the top-level size, so a resize
+  produces one native configure per frame instead of an extra minimum-size
+  resize (which made the window appear to jump sideways). Wheel zoom keeps the
+  card's top-left fixed and only changes its size, so no per-frame move can
+  make it wobble.
+- **Eased Ctrl+wheel zoom** — a wheel notch still adds exactly 10 %, but the
+  card now eases to the new scale with smoothstep over roughly 320 ms instead
+  of jumping in one frame. Smoothstep spreads the movement evenly across the
+  frames; the previous exponential ease-out front-loaded most of a step into
+  the first frame. Rapid notches retarget the same animation, and the final
+  scale is persisted when it settles.
+- Version defaults bumped to **1.0.3** in the `.deb` builder and the NSIS
+  installer fallback (release builds still take the tag version).
+
+## [1.0.2] - 2026-11-28
 
 ### Added
 - **Window layering toggle** — a new "Always on top / bottom" item in the tray

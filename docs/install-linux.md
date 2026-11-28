@@ -3,7 +3,7 @@
 ## Quick install (.deb)
 
 ```bash
-sudo apt install ./strix-pulse-monitor_1.0.0_all.deb   # from Releases
+sudo apt install ./strix-pulse-monitor_1.0.3_all.deb   # from Releases
 ```
 
 If PySide6 is not present, install it:

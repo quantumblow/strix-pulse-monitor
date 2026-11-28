@@ -17,10 +17,13 @@ Part of the open-source **[Strix Advanced Tools](https://github.com/strix-tool)*
 
 - Live **CPU, GPU, RAM, Storage** usage and **network down/up** traffic, refreshed once a second.
 - **Frameless glass widget** — drag to move, pin to lock, hide to tray.
+- **Resizable, zoomable card** — drag any corner for a proportional 0.5×–4× window,
+  or Ctrl+wheel in eased 10 % steps. Text scales with the window up to 2× and then stays
+  put, so a large card stays sharp instead of turning into billboard digits.
 - **GPU support:** NVIDIA via `nvidia-smi` (utilisation **and VRAM used/total**); on Windows,
   Intel/AMD via GPU performance counters (utilisation only); on **Linux, AMD via sysfs**
   (`gpu_busy_percent` + `mem_info_vram_*`, no root). Falls back to N/A gracefully.
-- Position & pin state saved and restored between runs.
+- Position, size/zoom and pin state saved and restored between runs.
 - **Hardened:** no network, no shell strings, no elevation. Settings are validated on load
   and written atomically. See [SECURITY.md](SECURITY.md).
 
@@ -47,7 +50,7 @@ python pulse_monitor.py
 ### Linux (Ubuntu / Debian)
 
 ```bash
-sudo apt install ./strix-pulse-monitor_1.0.0_all.deb     # from Releases
+sudo apt install ./strix-pulse-monitor_1.0.3_all.deb     # from Releases
 # or from source:
 sudo ./linux/install.sh            # add --user for a per-user install
 ./linux/install.sh --user --autostart   # start automatically with your session
@@ -61,7 +64,9 @@ Details: [docs/install-linux.md](docs/install-linux.md).
 | Action | How |
 |---|---|
 | Move | Left-click and drag |
-| Pin / lock | Click the pin button |
+| Resize | Drag any corner (aspect ratio kept, opposite corner anchored) |
+| Zoom | Ctrl + mouse wheel — eased 10 % per notch, 0.5×–4× |
+| Pin / lock | Click the pin button (stops moving; corners still resize) |
 | Hide to tray | Click ✕ |
 | Show/hide | Click the tray icon |
 | Exit | Right-click tray → Exit |

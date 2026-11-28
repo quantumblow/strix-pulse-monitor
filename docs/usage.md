@@ -7,7 +7,9 @@ above every other window.
 | Action | How |
 |---|---|
 | Move it | Left-click and drag anywhere on the card |
-| Pin / lock position | Click the pin button (locks so drags are ignored) |
+| Resize it | Drag any of the four corners |
+| Zoom it | Ctrl + mouse wheel (eased, 10 % per notch) |
+| Pin / lock position | Click the pin button (locks moving; corner resizing still works) |
 | Float above / behind other windows | Right-click the widget or tray icon → "Always on top / bottom" (checked = floats above) |
 | Hide to tray | Click ✕ |
 | Show / hide again | Click the tray icon |
@@ -15,6 +17,22 @@ above every other window.
 
 > On a Wayland session the stacking hint is compositor-dependent; the X11
 > session applies it through EWMH.
+
+## Window size and zoom
+
+The card scales proportionally between **0.5× and 4×**, and the chosen size is
+remembered across launches.
+
+- **Ctrl + mouse wheel** changes the scale by **10 % per notch**, eased over
+  about 320 ms. The card's top-left stays fixed, so only its size changes and it
+  never moves sideways while zooming.
+- **Drag a corner** to resize: both dimensions scale together, the opposite
+  corner stays fixed. The grab zone reaches from the window edge to
+  `SHADOW_PAD + clamp(14 × scale, 10, 24)` px inward, so the visible rounded
+  corner itself is grabbable. The pin only locks moving, so a pinned widget can
+  still be resized.
+- **Text stops growing at 2×** even when the card is larger; below 1× the text
+  shrinks along with the window. Rows and bars always keep the window's scale.
 
 ## What the rows mean
 
@@ -25,8 +43,8 @@ above every other window.
 
 ## Settings
 
-Window position, pin and layering state are saved automatically and restored
-next launch:
+Window position, scale (`scale` key, 0.5–4.0), pin and layering state are
+saved automatically and restored next launch:
 
 - **Windows:** `%APPDATA%\PulseMonitor\settings.json`
 - **Linux:** `~/.config/PulseMonitor/settings.json`
@@ -34,4 +52,4 @@ next launch:
 ## Customization
 
 Open `pulse_monitor.py` — the top has a **theme tokens** section (accent colors, background
-opacity `BG`, refresh interval `REFRESH_MS`, and the widget width).
+opacity `BG`, refresh interval `REFRESH_MS`, and the widget width at 1×, which the zoom scales).
