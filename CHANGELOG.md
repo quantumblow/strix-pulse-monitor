@@ -3,7 +3,28 @@
 All notable changes to Strix Pulse Monitor are documented here. Format:
 [Keep a Changelog](https://keepachangelog.com/); versioning: [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.0.3] - 2026-11-28
+
+### Added
+- **Window scaling (0.5×–4×)** — Ctrl + mouse wheel zooms in 5 % steps around
+  the pointer; the scale is saved as `scale` in `settings.json` (default 1.0)
+  and restored on launch. Zoomed windows are nudged back inside the screen so
+  the card can never grow out of reach.
+- **Four-corner resizing** — drag any corner for a uniform resize that keeps the
+  opposite corner anchored. The grab zone is `clamp(14 × scale, 10, 24)` px, and
+  Pin only locks *moving*: a pinned widget can still be resized.
+- **Font scale cap** — text tracks the window when shrinking below 1× but stops
+  growing at **2×**, while the card and its rows keep scaling up to 4×.
+- **Scaling tests** — `tests/` covers scale math, settings validation,
+  Ctrl+wheel, corner anchoring, the pin exception and persistence;
+  `tests/README.md` documents the manual X11 pass (0.5/1/2/4 screenshots,
+  four-corner cursors, geometry and restart).
+
+### Changed
+- Version defaults bumped to **1.0.3** in the `.deb` builder and the NSIS
+  installer fallback (release builds still take the tag version).
+
+## [1.0.2] - 2026-11-28
 
 ### Added
 - **Window layering toggle** — a new "Always on top / bottom" item in the tray
