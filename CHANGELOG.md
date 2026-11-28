@@ -6,9 +6,10 @@ All notable changes to Strix Pulse Monitor are documented here. Format:
 ## [1.0.3] - 2026-11-28
 
 ### Added
-- **Window scaling (0.5×–4×)** — Ctrl + mouse wheel zooms in 10 % steps in place; the scale is saved as `scale` in `settings.json` (default 1.0)
-  and restored on launch. Zoomed windows are nudged back inside the screen so
-  the card can never grow out of reach.
+- **Window scaling (0.5×–4×)** — Ctrl + mouse wheel zooms in 10 % steps in
+  place; the scale is saved as `scale` in `settings.json` (default 1.0) and
+  restored on launch. Zoomed windows are nudged back inside the screen so the
+  card can never grow out of reach.
 - **Four-corner resizing** — drag any corner for a uniform resize that keeps the
   opposite corner anchored. The grab zone reaches from the window edge to
   `SHADOW_PAD + clamp(14 × scale, 10, 24)` px inward, so the rounded corner is
@@ -48,22 +49,16 @@ All notable changes to Strix Pulse Monitor are documented here. Format:
   `_NET_WM_STATE` client message, because Qt only honours those flags when the
   native window is created. The choice is persisted as `on_top` in
   `settings.json` and restored on launch.
-- **GPU VRAM readout** — the GPU row now shows memory used/total next to utilisation
-  (`8% 1.8/16G`), and the tray tooltip lists it too. NVIDIA comes from `nvidia-smi`
-  `memory.used`/`memory.total`; AMD from `mem_info_vram_used`/`mem_info_vram_total` in
-  the same sysfs directory as `gpu_busy_percent`. Windows GPU counters stay
-  utilisation-only, and unsupported backends keep the old percentage-only row.
-- **Native Linux support** — launcher, `.desktop` entry, `install.sh`/`uninstall.sh`
-  (with `--autostart`), and a `.deb` builder.
-- **Linux GPU utilisation** via AMD sysfs (`gpu_busy_percent`, no root); NVIDIA continues
-  to work through `nvidia-smi`. Intel GPUs degrade gracefully to N/A.
-- XDG-aware config directory on Linux (`~/.config/PulseMonitor`).
-- Windows setup wizard: PyInstaller spec + `build.bat` + per-user NSIS installer
-  (`PulseMonitor.nsi`) with optional desktop shortcut and "start with Windows".
 
-### Changed
-- Unified on the full PySide6 widget; the old **Pulse Lite** edition is superseded
-  (its source was not recoverable and its features are a subset of this app).
+## [1.0.1] - 2026-11-28
+
+### Added
+- **GPU VRAM readout** — the GPU row now shows memory used/total next to
+  utilisation (`8% 1.8/16G`), and the tray tooltip lists it too. NVIDIA comes
+  from `nvidia-smi` `memory.used`/`memory.total`; AMD from
+  `mem_info_vram_used`/`mem_info_vram_total` in the same sysfs directory as
+  `gpu_busy_percent`. Windows GPU counters stay utilisation-only, and
+  unsupported backends keep the old percentage-only row.
 
 ### Fixed
 - **Autostart on Linux** — the tray toggle now creates/removes the XDG drop-in
@@ -73,7 +68,30 @@ All notable changes to Strix Pulse Monitor are documented here. Format:
   rather than the launcher, because a login session's `PATH` often lacks the
   Python that has PySide6 (e.g. a conda install), and it is regenerated when
   out of date so older entries self-heal. The checkbox reflects what is on disk.
+- **Windows installer version** — the NSIS installer now takes its version from
+  the release tag (`PulseMonitor.nsi` default + `build.bat`/release workflow),
+  so Apps & features no longer reports 1.0.0 for every release.
+
+## [1.0.0] - 2026-07-10
+
+### Added
+- Initial public release of the PySide6 desktop widget: live CPU, GPU, RAM,
+  storage and network rows in a frameless glass card, with tray menu and
+  persistent position/pin state.
+- **Native Linux support** — launcher, `.desktop` entry, `install.sh`/
+  `uninstall.sh` (with `--autostart`), and a `.deb` builder.
+- **Linux GPU utilisation** via AMD sysfs (`gpu_busy_percent`, no root); NVIDIA
+  continues to work through `nvidia-smi`. Intel GPUs degrade gracefully to N/A.
+- XDG-aware config directory on Linux (`~/.config/PulseMonitor`).
+- Windows setup wizard: PyInstaller spec + `build.bat` + per-user NSIS installer
+  (`PulseMonitor.nsi`) with optional desktop shortcut and "start with Windows".
+
+### Changed
+- Unified on the full PySide6 widget; the old **Pulse Lite** edition is
+  superseded (its source was not recoverable and its features are a subset of
+  this app).
 
 ### Security
-- The Windows GPU-counter fallback now invokes **PowerShell by absolute path** instead of
-  a bare name (defense-in-depth against `%PATH%` hijacking). See `SECURITY.md`.
+- The Windows GPU-counter fallback invokes **PowerShell by absolute path**
+  instead of a bare name (defense-in-depth against `%PATH%` hijacking). See
+  `SECURITY.md`.
