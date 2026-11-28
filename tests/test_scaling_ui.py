@@ -116,6 +116,15 @@ def test_wheel_zoom_is_anchored_under_the_pointer(widget):
     assert abs(after.y() - anchor.y()) <= 2
 
 
+def test_wheel_zoom_with_easing_disabled(widget, monkeypatch):
+    monkeypatch.setattr(pm, "ZOOM_EASE_TAU", 0.0)
+    _send_wheel(widget, 1)
+    assert not widget._zoom_timer.isActive()
+    assert widget.scale == 1.05
+    assert widget.size() == widget._size_for_scale(1.05)
+    assert pm.load_settings()["scale"] == 1.05
+
+
 def test_plain_wheel_does_not_zoom(widget):
     _send_wheel(widget, 3, ctrl=False)
     assert widget.scale == 1.0

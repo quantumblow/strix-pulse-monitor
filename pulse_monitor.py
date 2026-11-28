@@ -94,7 +94,15 @@ RESIZE_GRIP     = 14      # corner hit zone at 1.0× (px), clamped below
 RESIZE_GRIP_MIN = 10
 RESIZE_GRIP_MAX = 24
 SHADOW_MAX_STEPS = 24     # cap the shadow layers at large scales
-ZOOM_EASE_TAU = 0.037     # wheel zoom time constant (~120 ms to settle)
+# Wheel zoom easing. The settle threshold is 0.002 of a scale step, i.e.
+# ln(25) time constants. PULSE_ZOOM_EASE_MS is a temporary A/B test knob:
+# set it to 0 to disable easing, or to any duration in milliseconds.
+try:
+    ZOOM_EASE_MS = max(0, int(os.environ.get("PULSE_ZOOM_EASE_MS", "80")))
+except ValueError:
+    ZOOM_EASE_MS = 80
+ZOOM_EASE_TAU = ((ZOOM_EASE_MS / 1000.0) / math.log(25.0)
+                 if ZOOM_EASE_MS else 0.0)
 BASE_WIDTH      = WIDGET_WIDTH + SHADOW_PAD * 2
 
 # Base layout heights (px at 1.0×). Kept here so the window size, the layout
@@ -1179,34 +1187,49 @@ class PulseWidget(QWidget):
         if target == self.scale:
             self._stop_zoom()
             return
+        if ZOOM_EASE_TAU <= 0:
+            # A/B test mode: apply the notch immediately (still one geometry
+            # update, so it stays free of the old jitter).
+            self._zoom_frame(target)
+            self._zoom_anchor = None
+            self._zoom_target = self.scale
+            self._persist()
+            self._update_hover_cursor(QCursor.pos())
+            return
         if not self._zoom_timer.isActive():
             self._zoom_clock.restart()
             self._zoom_timer.start()
 
-    def _zoom_tick(self):
-        """One eased frame: exponential approach to the target scale.
-
-        ZOOM_EASE_TAU controls how quickly a notch settles: ~120 ms here, so
-        it feels snappy while still animating instead of jumping.
-        """
+    def _zoom_frame(self, new_scale):
+        """Apply one zoom frame around the stored anchor."""
         if self._zoom_anchor is None:
-            self._zoom_timer.stop()
             return
-        dt = max(0.001, min(self._zoom_clock.restart() / 1000.0, 0.05))
-        remaining = self._zoom_target - self.scale
-        if abs(remaining) <= 0.002:
-            new_scale = self._zoom_target
-            done = True
-        else:
-            new_scale = self.scale + remaining * (1 - math.exp(-dt / ZOOM_EASE_TAU))
-            done = False
-
         anchor, fx, fy = self._zoom_anchor
         target = layout_metrics(new_scale)
         x = round(anchor.x() - fx * target["width"])
         y = round(anchor.y() - fy * target["height"])
         x, y = self._clamp_pos(x, y, target["width"], target["height"])
         self._apply_scale_to(new_scale, x, y)
+
+    def _zoom_tick(self):
+        """One eased frame: exponential approach to the target scale.
+
+        ZOOM_EASE_TAU controls how quickly a notch settles: ~80 ms by default,
+        so it feels snappy while still animating instead of jumping.
+        """
+        if self._zoom_anchor is None:
+            self._zoom_timer.stop()
+            return
+        dt = max(0.001, min(self._zoom_clock.restart() / 1000.0, 0.05))
+        remaining = self._zoom_target - self.scale
+        if ZOOM_EASE_TAU <= 0 or abs(remaining) <= 0.002:
+            new_scale = self._zoom_target
+            done = True
+        else:
+            new_scale = self.scale + remaining * (1 - math.exp(-dt / ZOOM_EASE_TAU))
+            done = False
+
+        self._zoom_frame(new_scale)
 
         if done:
             self._zoom_timer.stop()
