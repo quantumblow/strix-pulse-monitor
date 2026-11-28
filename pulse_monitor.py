@@ -278,16 +278,18 @@ def _linux_autostart_path() -> str:
 
 
 def _linux_autostart_exec() -> list[str]:
-    """Absolute command that starts the widget — never resolved via $PATH."""
+    """Absolute command that starts this instance — never resolved via $PATH.
+
+    Run the interpreter this process already uses instead of the packaged
+    launcher: a login session commonly has a different PATH than the shell that
+    started the app (e.g. a conda Python), and the launcher's `python3` lookup
+    would then pick an interpreter without PySide6."""
     if getattr(sys, "frozen", False):
-        return [sys.executable]
-    for p in ("/usr/bin/strix-pulse-monitor",
-              "/usr/local/bin/strix-pulse-monitor",
-              os.path.expanduser("~/.local/bin/strix-pulse-monitor")):
-        if os.access(p, os.X_OK):
-            return [p]
+        return [os.path.abspath(sys.executable)]
     script = os.path.abspath(__file__)
-    return [sys.executable, script] if os.path.isfile(script) else []
+    if os.path.isfile(script):
+        return [os.path.abspath(sys.executable), script]
+    return []
 
 
 def _desktop_quote(arg: str) -> str:
@@ -295,11 +297,11 @@ def _desktop_quote(arg: str) -> str:
     return '"' + arg.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def _write_linux_autostart(path: str) -> None:
+def _linux_autostart_entry() -> str | None:
     argv = _linux_autostart_exec()
     if not argv:
-        return
-    entry = (
+        return None
+    return (
         "[Desktop Entry]\n"
         "Type=Application\n"
         "Name=Strix Pulse Monitor\n"
@@ -310,6 +312,9 @@ def _write_linux_autostart(path: str) -> None:
         "Categories=Utility;System;Monitor;\n"
         "X-GNOME-Autostart-enabled=true\n"
     )
+
+
+def _write_linux_autostart(path: str, entry: str) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
@@ -321,9 +326,11 @@ def ensure_autostart(enable: bool):
     """Enable/disable starting the widget at login.
 
     Windows manages a per-user HKCU ...\\Run value (installed exe only); Linux
-    manages an XDG autostart drop-in. When enabling, an existing drop-in is
-    left untouched, so entries created by install.sh --autostart (or edited by
-    hand) keep their settings. Wrapped so it can never break startup."""
+    manages an XDG autostart drop-in. The app owns that drop-in: it is written
+    from the current interpreter when missing or out of date, so entries from
+    earlier versions (or install.sh --autostart) converge on a command that
+    also works with the login session's PATH. Wrapped so it can never break
+    startup."""
     if os.name == "nt":
         exe = sys.executable if getattr(sys, "frozen", False) else None
         try:
@@ -345,11 +352,19 @@ def ensure_autostart(enable: bool):
 
     try:
         path = _linux_autostart_path()
-        if enable:
-            if not os.path.exists(path):
-                _write_linux_autostart(path)
-        else:
+        if not enable:
             os.unlink(path)
+            return
+        entry = _linux_autostart_entry()
+        if entry is None:
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                current = f.read()
+        except OSError:
+            current = None
+        if current != entry:
+            _write_linux_autostart(path, entry)
     except FileNotFoundError:
         pass
     except Exception:
@@ -447,8 +462,8 @@ class PulseWidget(QWidget):
         if os.name == "nt":
             self.autostart = self.settings.get("autostart", True)
         else:
-            # The XDG drop-in is the source of truth: it may pre-date the app
-            # (install.sh --autostart) or have been edited by hand.
+            # The XDG drop-in is the source of truth for the checkbox; it is
+            # regenerated from the running interpreter when out of date.
             self.autostart = os.path.exists(_linux_autostart_path())
         ensure_autostart(self.autostart)   # keep the login entry in sync
         self._drag_offset: QPoint | None = None
