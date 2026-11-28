@@ -105,17 +105,17 @@ def test_ctrl_wheel_steps_and_persists(widget):
     assert widget.size() == widget._size_for_scale(two_back)
 
 
-def test_wheel_zoom_is_anchored_under_the_pointer(widget):
-    widget.move(100, 150)
+def test_wheel_zoom_keeps_top_left_fixed(widget):
+    widget.move(120, 140)
     QApplication.processEvents()
-    anchor = widget.mapToGlobal(QPoint(widget.width() // 2,
-                                       widget.height() // 2))
     _send_wheel(widget, 1)
     _settle_zoom(widget)
-    after = widget.mapToGlobal(QPoint(widget.width() // 2,
-                                      widget.height() // 2))
-    assert abs(after.x() - anchor.x()) <= 2
-    assert abs(after.y() - anchor.y()) <= 2
+    assert widget.pos() == QPoint(120, 140)
+    assert widget.size() == widget._size_for_scale(1.0 + pm.SCALE_STEP)
+
+    _send_wheel(widget, -3)
+    _settle_zoom(widget)
+    assert widget.pos() == QPoint(120, 140)
 
 
 def test_wheel_zoom_with_easing_disabled(widget, monkeypatch):

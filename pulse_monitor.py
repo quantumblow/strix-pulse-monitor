@@ -829,7 +829,6 @@ class PulseWidget(QWidget):
         # instead of a one-step window jump.
         self._zoom_target = self.scale
         self._zoom_start_scale = self.scale
-        self._zoom_anchor: tuple[QPoint, float, float] | None = None
         self._zoom_clock = QElapsedTimer()
         self._zoom_timer = QTimer(self)
         self._zoom_timer.setInterval(16)
@@ -1157,7 +1156,7 @@ class PulseWidget(QWidget):
             self._persist()
 
     def wheelEvent(self, e):
-        """Ctrl + wheel: SCALE_STEP per notch, eased and anchored at the pointer."""
+        """Ctrl + wheel: SCALE_STEP per notch, eased in place."""
         if self._resize is not None or self._drag_offset is not None:
             # A held drag owns the window geometry; never start a second mover.
             e.accept()
@@ -1166,24 +1165,16 @@ class PulseWidget(QWidget):
             delta = e.angleDelta().y() or e.pixelDelta().y()
             if delta:
                 target = zoomed_scale(self._zoom_target, delta / 120.0)
-                self._zoom_to(target, e.globalPosition().toPoint())
+                self._zoom_to(target)
                 e.accept()
                 return
         super().wheelEvent(e)
 
-    def _zoom_to(self, target, global_pos: QPoint):
-        """Set a new zoom target; the timer eases the card towards it."""
+    def _zoom_to(self, target):
+        """Set a new zoom target; the timer eases the card towards it in place."""
         target = clamp_scale(target)
         if target == self._zoom_target and self._zoom_timer.isActive():
             return
-        if self._zoom_anchor is None:
-            # Remember the card point under the pointer for the whole burst so
-            # repeated notches cannot accumulate rounding drift.
-            fx = min(max((global_pos.x() - self.x())
-                         / max(1, self.width()), 0.0), 1.0)
-            fy = min(max((global_pos.y() - self.y())
-                         / max(1, self.height()), 0.0), 1.0)
-            self._zoom_anchor = (QPoint(global_pos), fx, fy)
         self._zoom_target = target
         if target == self.scale:
             self._stop_zoom()
@@ -1192,7 +1183,6 @@ class PulseWidget(QWidget):
             # A/B test mode: apply the notch immediately (still one geometry
             # update, so it stays free of the old jitter).
             self._zoom_frame(target)
-            self._zoom_anchor = None
             self._zoom_target = self.scale
             self._persist()
             self._update_hover_cursor(QCursor.pos())
@@ -1203,26 +1193,16 @@ class PulseWidget(QWidget):
             self._zoom_timer.start()
 
     def _zoom_frame(self, new_scale):
-        """Apply one zoom frame around the stored anchor."""
-        if self._zoom_anchor is None:
-            return
-        anchor, fx, fy = self._zoom_anchor
-        target = layout_metrics(new_scale)
-        x = round(anchor.x() - fx * target["width"])
-        y = round(anchor.y() - fy * target["height"])
-        x, y = self._clamp_pos(x, y, target["width"], target["height"])
-        self._apply_scale_to(new_scale, x, y)
+        """Apply one zoom frame without moving the card's top-left."""
+        self._apply_scale_to(new_scale, self.x(), self.y())
 
     def _zoom_tick(self):
         """One smoothstep frame over ZOOM_EASE_MS milliseconds.
 
         Smoothstep is deliberate: a plain exponential ease-out puts most of a
         10 % step into the first frame, which still reads as a jump. This curve
-        starts and ends slowly and spends its frames moving the window.
+        starts and ends slowly and spends its frames resizing the window.
         """
-        if self._zoom_anchor is None:
-            self._zoom_timer.stop()
-            return
         elapsed = self._zoom_clock.elapsed()
         if ZOOM_EASE_MS <= 0 or elapsed >= ZOOM_EASE_MS:
             new_scale = self._zoom_target
@@ -1238,7 +1218,6 @@ class PulseWidget(QWidget):
 
         if done:
             self._zoom_timer.stop()
-            self._zoom_anchor = None
             self._zoom_target = self.scale
             self._persist()
             self._update_hover_cursor(QCursor.pos())
@@ -1246,7 +1225,6 @@ class PulseWidget(QWidget):
     def _stop_zoom(self):
         """Abandon/finish an animation instantly (e.g. when a drag starts)."""
         self._zoom_timer.stop()
-        self._zoom_anchor = None
         self._zoom_target = self.scale
 
     def _begin_resize(self, corner: str, global_pos: QPoint):

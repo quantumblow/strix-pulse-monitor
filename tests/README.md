@@ -14,7 +14,7 @@ manager, a tray or the current desktop session; `DISPLAY` is not needed.
   font cap, the `clamp(14 × scale, 10, 24)` grip, corner hit-testing, uniform
   drag math, opposite-corner anchoring, layout metrics and settings validation.
 - `test_scaling_ui.py` — a real `PulseWidget` driven through its event
-  handlers: Ctrl+wheel (step, pointer anchor, clamping), font cap on the actual
+  handlers: Ctrl+wheel (step, in-place resize, clamping), font cap on the actual
   labels, the four corner cursors, resizing from every corner, Pin locking
   moving but not resizing, and scale/position persistence across a reload.
 
@@ -30,8 +30,8 @@ XDG_CONFIG_HOME="$CFG" python3 pulse_monitor.py &
 ```
 
 1. **Scales** — with the pointer over the card, Ctrl+wheel up four notches gives
-   `scale: 1.2` in `$CFG/PulseMonitor/settings.json`; scrolling down clamps at
-   `0.5`, scrolling up clamps at `4.0`. Capture the window at 0.5/1/2/4 by
+   `scale: 1.4` in `$CFG/PulseMonitor/settings.json` and the window's top-left
+   does not move; scrolling down clamps at `0.5`, scrolling up clamps at `4.0`. Capture the window at 0.5/1/2/4 by
    writing `"scale"` into `settings.json` before launch and compare the physical
    size with `layout_metrics(scale)`.
 2. **Corners** — grab each corner: the cursor becomes a diagonal resize cursor,
