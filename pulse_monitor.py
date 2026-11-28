@@ -6,6 +6,7 @@ Features:
   • Live CPU, GPU (utilisation + VRAM), RAM, Storage + network down/up traffic
   • Frameless glass design with painted soft shadow (no Qt effect glitches)
   • Drag anywhere to reposition, Pin (📌) to lock in place
+  • Switch between always-on-top and desktop-level layering from the menus
   • Right-click context menu on the widget itself
   • Position & settings persist atomically; restored position is clamped
     to visible screen area (safe after monitor changes)
@@ -322,6 +323,8 @@ def load_settings() -> dict:
             out["pinned"] = raw["pinned"]
         if isinstance(raw.get("autostart"), bool):
             out["autostart"] = raw["autostart"]
+        if isinstance(raw.get("on_top"), bool):
+            out["on_top"] = raw["on_top"]
         if isinstance(raw.get("lang"), str) and raw["lang"] in LANG_CODES:
             out["lang"] = raw["lang"]
         return out
@@ -345,6 +348,89 @@ def save_settings(data: dict):
         os.replace(tmp, CONFIG_FILE)
     except Exception:
         pass
+
+
+def _x11_set_stacking(win_id: int, on_top: bool) -> bool:
+    """Restack an already-mapped X11 window through EWMH.
+
+    Qt applies ``WindowStaysOnTop/BottomHint`` only when the native window is
+    created; changing the flag at runtime leaves ``_NET_WM_STATE`` empty, so the
+    window manager never restacks. Sending the standard client message is the
+    portable EWMH way to do it. Returns False where X11/EWMH is unavailable
+    (Windows, Wayland, headless platforms).
+    """
+    if os.name == "nt" or not os.environ.get("DISPLAY"):
+        return False
+    if (os.environ.get("WAYLAND_DISPLAY")
+            or os.environ.get("XDG_SESSION_TYPE") == "wayland"):
+        return False
+    try:
+        import ctypes
+        import ctypes.util
+
+        class _ClientMessage(ctypes.Structure):
+            _fields_ = [
+                ("type", ctypes.c_int),
+                ("serial", ctypes.c_ulong),
+                ("send_event", ctypes.c_int),
+                ("display", ctypes.c_void_p),
+                ("window", ctypes.c_ulong),
+                ("message_type", ctypes.c_ulong),
+                ("format", ctypes.c_int),
+                ("data", ctypes.c_long * 5),
+            ]
+
+        class _Event(ctypes.Union):
+            _fields_ = [("xclient", _ClientMessage), ("pad", ctypes.c_long * 24)]
+
+        lib = ctypes.CDLL(ctypes.util.find_library("X11") or "libX11.so.6")
+        lib.XOpenDisplay.restype = ctypes.c_void_p
+        lib.XOpenDisplay.argtypes = [ctypes.c_char_p]
+        lib.XInternAtom.restype = ctypes.c_ulong
+        lib.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p,
+                                    ctypes.c_int]
+        lib.XDefaultRootWindow.restype = ctypes.c_ulong
+        lib.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+        lib.XSendEvent.argtypes = [ctypes.c_void_p, ctypes.c_ulong,
+                                   ctypes.c_int, ctypes.c_long,
+                                   ctypes.POINTER(_Event)]
+        lib.XFlush.argtypes = [ctypes.c_void_p]
+        lib.XCloseDisplay.argtypes = [ctypes.c_void_p]
+
+        dpy = lib.XOpenDisplay(None)
+        if not dpy:
+            return False
+        try:
+            root = lib.XDefaultRootWindow(dpy)
+            state = lib.XInternAtom(dpy, b"_NET_WM_STATE", 0)
+            above = lib.XInternAtom(dpy, b"_NET_WM_STATE_ABOVE", 0)
+            below = lib.XInternAtom(dpy, b"_NET_WM_STATE_BELOW", 0)
+            if not (state and above and below):
+                return False
+
+            def send(action, atom):
+                ev = _Event()
+                ev.xclient.type = 33            # ClientMessage
+                ev.xclient.send_event = 1
+                ev.xclient.display = dpy
+                ev.xclient.window = win_id
+                ev.xclient.message_type = state
+                ev.xclient.format = 32
+                ev.xclient.data[0] = action     # 0=remove, 1=add
+                ev.xclient.data[1] = atom
+                ev.xclient.data[3] = 1          # source: application
+                lib.XSendEvent(dpy, root, 0, (1 << 20) | (1 << 19),
+                               ctypes.byref(ev))
+
+            # A window cannot be both: remove the other state, then add ours.
+            send(0, below if on_top else above)
+            send(1, above if on_top else below)
+            lib.XFlush(dpy)
+            return True
+        finally:
+            lib.XCloseDisplay(dpy)
+    except Exception:
+        return False
 
 
 def _linux_autostart_path() -> str:
@@ -534,6 +620,7 @@ class PulseWidget(QWidget):
         saved_lang = self.settings.get("lang")
         _TR.set(saved_lang if saved_lang in LANG_CODES else detect_os_lang())
         self.pinned = self.settings.get("pinned", False)
+        self.on_top = self.settings.get("on_top", False)
         if os.name == "nt":
             self.autostart = self.settings.get("autostart", True)
         else:
@@ -545,11 +632,12 @@ class PulseWidget(QWidget):
         self._quitting = False
 
         self.setWindowTitle(APP_NAME)
-        # Desktop widget: sit at the BOTTOM of the z-order so normal windows
-        # (folders, browsers, etc.) cover it - it stays on the desktop instead
-        # of floating on top of everything.
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Tool |
-                            Qt.WindowStaysOnBottomHint)
+        # Desktop widget: sit at the BOTTOM of the z-order by default, so
+        # normal windows cover it; "on top" floats it above everything instead.
+        flags = Qt.FramelessWindowHint | Qt.Tool
+        flags |= (Qt.WindowStaysOnTopHint if self.on_top
+                  else Qt.WindowStaysOnBottomHint)
+        self.setWindowFlags(flags)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setFixedWidth(WIDGET_WIDTH + SHADOW_PAD * 2)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -732,6 +820,36 @@ class PulseWidget(QWidget):
         self._apply_cursor()
         self._persist()
 
+    def toggle_on_top(self):
+        self.on_top = not self.on_top
+        # On X11, changing the window flags re-creates the native window and
+        # drops _NET_WM_STATE, so ask the WM through EWMH instead. Windows and
+        # other platforms use the Qt flag path.
+        if not self._sync_stacking():
+            visible = self.isVisible()
+            self.setWindowFlag(Qt.WindowStaysOnBottomHint, not self.on_top)
+            self.setWindowFlag(Qt.WindowStaysOnTopHint, self.on_top)
+            if visible:
+                self.show()
+        self.act_top.setChecked(self.on_top)
+        self._persist()
+
+    def _sync_stacking(self) -> bool:
+        """Apply the stacking state on X11 via EWMH; False elsewhere."""
+        if QApplication.platformName() != "xcb":
+            return False
+        try:
+            wid = int(self.winId())
+        except (TypeError, ValueError):
+            return False
+        return _x11_set_stacking(wid, self.on_top)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        # A hidden window re-shown after a toggle must get its state re-applied
+        # once it is actually mapped; defer until the event loop runs again.
+        QTimer.singleShot(0, self._sync_stacking)
+
     def toggle_autostart(self):
         self.autostart = not self.autostart
         ensure_autostart(self.autostart)
@@ -749,6 +867,7 @@ class PulseWidget(QWidget):
     def _persist(self):
         self.settings.update({"x": self.x(), "y": self.y(),
                               "pinned": self.pinned,
+                              "on_top": self.on_top,
                               "autostart": self.autostart})
         save_settings(self.settings)
 
@@ -800,6 +919,7 @@ class PulseWidget(QWidget):
         self.close_btn.setToolTip(_("Hide to tray"))
         self._update_pin_icon()
         self.act_show.setText(_("Show / Hide"))
+        self.act_top.setText(_("Always on top / bottom"))
         self.act_pin.setText(_("Toggle Pin"))
         self.act_auto.setText(_("Start on login"))
         self.act_quit.setText(_("Exit"))
@@ -812,6 +932,9 @@ class PulseWidget(QWidget):
         menu = QMenu(self)
         act_pin = menu.addAction(_("Unpin") if self.pinned else _("Pin"))
         act_hide = menu.addAction(_("Hide to tray"))
+        act_top = menu.addAction(_("Always on top / bottom"))
+        act_top.setCheckable(True)
+        act_top.setChecked(self.on_top)
         act_auto = menu.addAction(_("Start on login"))
         act_auto.setCheckable(True)
         act_auto.setChecked(self.autostart)
@@ -823,6 +946,8 @@ class PulseWidget(QWidget):
             self.toggle_pin()
         elif chosen == act_hide:
             self.hide()
+        elif chosen == act_top:
+            self.toggle_on_top()
         elif chosen == act_auto:
             self.toggle_autostart()
         elif chosen == act_quit:
@@ -836,6 +961,10 @@ class PulseWidget(QWidget):
         menu = QMenu()
         self.act_show = QAction(_("Show / Hide"), menu)
         self.act_show.triggered.connect(self._toggle_visible)
+        self.act_top = QAction(_("Always on top / bottom"), menu)
+        self.act_top.setCheckable(True)
+        self.act_top.setChecked(self.on_top)
+        self.act_top.triggered.connect(self.toggle_on_top)
         self.act_pin = QAction(_("Toggle Pin"), menu)
         self.act_pin.triggered.connect(self.toggle_pin)
         self.act_auto = QAction(_("Start on login"), menu)
@@ -846,6 +975,7 @@ class PulseWidget(QWidget):
         self.act_quit.triggered.connect(self._quit)
         self.tray_lang_menu = self._make_language_menu(menu)
         menu.addAction(self.act_show)
+        menu.addAction(self.act_top)
         menu.addAction(self.act_pin)
         menu.addAction(self.act_auto)
         menu.addMenu(self.tray_lang_menu)

@@ -6,6 +6,13 @@ All notable changes to Strix Pulse Monitor are documented here. Format:
 ## [Unreleased]
 
 ### Added
+- **Window layering toggle** — a new "Always on top / bottom" item in the tray
+  menu and the widget context menu switches between floating above normal
+  windows (`WindowStaysOnTopHint`) and the previous desktop-level behaviour
+  (`WindowStaysOnBottomHint`). On X11 the runtime switch is applied with an EWMH
+  `_NET_WM_STATE` client message, because Qt only honours those flags when the
+  native window is created. The choice is persisted as `on_top` in
+  `settings.json` and restored on launch.
 - **GPU VRAM readout** — the GPU row now shows memory used/total next to utilisation
   (`8% 1.8/16G`), and the tray tooltip lists it too. NVIDIA comes from `nvidia-smi`
   `memory.used`/`memory.total`; AMD from `mem_info_vram_used`/`mem_info_vram_total` in

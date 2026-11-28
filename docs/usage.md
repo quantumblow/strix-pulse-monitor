@@ -1,14 +1,20 @@
 # Using Strix Pulse Monitor
 
-The widget appears as a small frameless card, always on top.
+The widget appears as a small frameless card. It sits at desktop level by
+default, so normal windows cover it; switch it to "Always on top" to keep it
+above every other window.
 
 | Action | How |
 |---|---|
 | Move it | Left-click and drag anywhere on the card |
 | Pin / lock position | Click the pin button (locks so drags are ignored) |
+| Float above / behind other windows | Right-click the widget or tray icon → "Always on top / bottom" (checked = floats above) |
 | Hide to tray | Click ✕ |
 | Show / hide again | Click the tray icon |
 | Exit completely | Right-click the tray icon → Exit |
+
+> On a Wayland session the stacking hint is compositor-dependent; the X11
+> session applies it through EWMH.
 
 ## What the rows mean
 
@@ -19,7 +25,8 @@ The widget appears as a small frameless card, always on top.
 
 ## Settings
 
-Window position and pin state are saved automatically and restored next launch:
+Window position, pin and layering state are saved automatically and restored
+next launch:
 
 - **Windows:** `%APPDATA%\PulseMonitor\settings.json`
 - **Linux:** `~/.config/PulseMonitor/settings.json`
