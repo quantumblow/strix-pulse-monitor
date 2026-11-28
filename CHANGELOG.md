@@ -27,8 +27,10 @@ All notable changes to Strix Pulse Monitor are documented here. Format:
 - **Autostart on Linux** — the tray toggle now creates/removes the XDG drop-in
   (`~/.config/autostart/strix-pulse-monitor.desktop`) instead of silently doing
   nothing outside Windows, and the menu entry reads **"Start on login"** rather
-  than claiming Windows. A drop-in created by `install.sh --autostart` (or edited
-  by hand) is preserved, and the checkbox reflects what is actually on disk.
+  than claiming Windows. The drop-in runs the interpreter the app is using
+  rather than the launcher, because a login session's `PATH` often lacks the
+  Python that has PySide6 (e.g. a conda install), and it is regenerated when
+  out of date so older entries self-heal. The checkbox reflects what is on disk.
 
 ### Security
 - The Windows GPU-counter fallback now invokes **PowerShell by absolute path** instead of
